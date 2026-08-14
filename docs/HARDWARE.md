@@ -64,6 +64,46 @@ pins.
 | Orange | CLK | D13 |
 | Green | CSn | D10 |
 
+## Parts List
+
+Everything used to build this device, mostly sourced from Amazon.
+
+### Electronics
+
+* Arduino Uno R4 Minima
+* SimpleFOC Shield v2.0.4 (third-party/off-brand)
+* GM3506 BLDC motor + AS5048A magnetic encoder (sold as a combo)
+* Bench power supply
+
+### Wiring
+
+* 18 AWG wire, red and black (power)
+* Male-to-male Dupont jumper wires
+* JST SH 1.0mm 6-pin cable (encoder → shield, see wiring table above;
+  hot-glued into the housing to strain-relieve it)
+* Heat shrink tubing
+* Electrical tape
+* USB-C to USB-C cable (Arduino ↔ computer)
+
+### Motion / Mechanical
+
+* Stainless steel cable, 7x19 construction, 1/16"
+* Wire rope thimble + sleeve/clamp, sized for 1/16" cable
+* Idler pulley, 40mm, U-groove, 8mm inner diameter, 1.5" tall
+* Linear rail and carriage, 600mm, MGN15H carriage block
+* 4040 aluminum extrusion, 1 meter
+
+### Fasteners
+
+* M3 and M2.5 hex socket button head screws (see sizes/uses in the table
+  above)
+* M8 x 20mm hex socket head cap screw (idler pulley; hot-glued in place)
+
+### 3D Printing
+
+* PETG filament — the six CAD-modeled parts (color doesn't matter)
+* PLA filament — the 4040 mounting pieces (color doesn't matter)
+
 ## CAD Models & References
 
 ### Onshape CAD
