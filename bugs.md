@@ -2,22 +2,6 @@
 
 Date: 2026-04-02
 
-Fixed Since The Earlier Notes
-
-# please test ase morse behavior refer to README
-can use haptic_device [number_of_atoms_param] [ase, morse]
-examples:
-./path/to/haptic-device/ 5 ase
-./path/to/haptic-device/ POSCAR ase
-
-Problem with ASE calculator when using with param of # atoms
-PE is 0.00 
-
-1. The old size-sensitive `free(): invalid pointer` abort is no longer reproducible in the current binary.
-2. Missing-haptic-device startup no longer dereferences a null device; it falls back to keyboard/mouse-only mode.
-3. File/POSCAR load failures are now caught and reported cleanly.
-4. The CTRL help toggle no longer flips on `GLFW_REPEAT`.
-
 # Partially Fixed
 1. Shutdown no longer hangs just because no haptics thread was started.
 2. I did not validate real-device shutdown behavior because no hardware was present, so that case remains only partially covered.
@@ -57,14 +41,7 @@ Status:
 
 Problem:
 - The button-1 scan still has no termination condition.
-- If every candidate atom is anchored, the `while (spheres[simulatedCurrentAtom]->isAnchor())` loop can spin forever.
-
-# Open Issue 4: `u` Hotkey Still Has Assignment Inside `assert`
-
-Problem:
-- `assert(just_unanchored = 5);` still assigns instead of comparing.
-- In debug builds it always passes; in release builds it disappears.
-
+- If every candidate atom is anchored, the `while (atoms[simulatedCurrentAtom]->isAnchor())` loop can spin forever.
 
 # Partially Fixed Item 4: Shutdown Hang
 
@@ -74,8 +51,3 @@ Previous claim:
 Current result:
 - `close()` now waits only if the haptics thread actually started, via [LJ.cpp](chai3d-3.3.0/haptic-device/LJ.cpp#L964).
 - In this no-device environment, `q` and `ESC` both produced normal shutdown.
-
-# Fixed Item 5: CTRL Help Toggle Repeat Bug
-
-Previous claim:
-- Holding CTRL could toggle the panel repeatedly due to `GLFW_REPEAT`.

@@ -22,7 +22,7 @@ bool fileExists(const std::string &name) {
   return (stat(name.c_str(), &buffer) == 0);
 }
 
-static std::string getExecutableDir() {
+std::string getExecutableDir() {
   char buffer[4096];
   ssize_t length = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
   if (length <= 0) {
@@ -39,7 +39,7 @@ static std::string getExecutableDir() {
   return executablePath.substr(0, separator);
 }
 
-static std::vector<std::string> getGlobalMinimaCandidates() {
+ std::vector<std::string> getGlobalMinimaCandidates() {
   std::vector<std::string> candidates;
   std::string executableDir = getExecutableDir();
 
@@ -146,12 +146,12 @@ void addLabel(chai3d::cLabel *&label) {
 void updateCameraLabel(chai3d::cLabel *&camera_pos, chai3d::cCamera *&camera) {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   camera_pos->setText("Camera located at: (" +
-                      chai3d::cStr(rho * sin(camera->getSphericalPolarRad()) *
+                      chai3d::cStr(CAMERA_RADIUS * sin(camera->getSphericalPolarRad()) *
                            cos(camera->getSphericalAzimuthRad())) +
                       ", " +
-                      chai3d::cStr(rho * sin(camera->getSphericalPolarRad()) *
+                      chai3d::cStr(CAMERA_RADIUS * sin(camera->getSphericalPolarRad()) *
                            sin(camera->getSphericalAzimuthRad())) +
-                      ", " + chai3d::cStr(rho * cos(camera->getSphericalPolarRad())) +
+                      ", " + chai3d::cStr(CAMERA_RADIUS * cos(camera->getSphericalPolarRad())) +
                       ")");
 }
 
@@ -165,18 +165,99 @@ void writeToCon(std::string fileName) {
   << endl
   << endl;
   writeFile << "1" << endl
-  << spheres.size() << endl
+  << atoms.size() << endl
   << "1.007940" << endl
   << "H" << endl
   << "Coordinates of Component 1" << endl;
   writeFile.precision(7);
   writeFile << centerCoords[0] << " " << centerCoords[1] << " "
   << centerCoords[2] << " 0 0" << endl;
-  for (int i = 1; i < spheres.size(); i++) {
-    chai3d::cVector3d pos = spheres[i]->getLocalPos();
-    writeFile << (pos.x() / 0.02) + centerCoords[0] << " "
-    << (pos.y() / 0.02) + centerCoords[1] << " "
-    << (pos.z() / 0.02) + centerCoords[2] << " 0 " << i << endl;
+  for (int i = 1; i < atoms.size(); i++) {
+    chai3d::cVector3d pos = atoms[i]->getLocalPos();
+    writeFile << (pos.x() / DIST_SCALE) + centerCoords[0] << " "
+    << (pos.y() / DIST_SCALE) + centerCoords[1] << " "
+    << (pos.z() / DIST_SCALE) + centerCoords[2] << " 0 " << i << endl;
   }
   writeFile.close();
+}
+
+bool isFiniteVector(const chai3d::cVector3d &v) {
+  return std::isfinite(v.x()) && std::isfinite(v.y()) && std::isfinite(v.z());
+}
+
+// THIS CALCULATES THE MAGNTIUDES OF THE VECTORS  
+chai3d::cVector3d clampVectorMagnitude(const chai3d::cVector3d &v, const double maxMagnitude) {
+  if (!isFiniteVector(v)) {
+    return chai3d::cVector3d(0.0, 0.0, 0.0);
+  }
+  const double length = v.length();
+  if (length > maxMagnitude && length > 0.0) {
+    return maxMagnitude * chai3d::cNormalize(v);
+  }
+  return v;
+}
+
+/// @brief Draws a rectangle as requested.
+/// @param x X-pos of the top-left(?) of the rectangle
+/// @param y Y-pos of the top-left(?) of the rectangle
+/// @param w Width of the rectangle
+/// @param h Height of the rectangle
+/// @param color Color of the rectangle
+void drawRect(double x, double y, double w, double h, chai3d::cColorf color) {
+  glColor3f(color.getR(), color.getG(), color.getB());
+  glBegin(GL_QUADS);
+  glVertex2d(x, y);
+  glVertex2d(x + w, y);
+  glVertex2d(x + w, y + h);
+  glVertex2d(x, y + h);
+  glEnd();
+}
+
+/// @brief Draws a circle as requested.
+/// @param x X-pos of the center of the circle
+/// @param y Y-pos of the center of the circle
+/// @param radius Radius of the circle
+/// @param color Color of the circle
+void drawCircle(double cx, double cy, double radius, chai3d::cColorf color) {
+  const int segments = 24;
+  glColor3f(color.getR(), color.getG(), color.getB());
+  glBegin(GL_TRIANGLE_FAN);
+  glVertex2d(cx, cy);
+  for (int i = 0; i <= segments; i++) {
+    const double angle = 2.0 * M_PI * i / segments;
+    glVertex2d(cx + radius * cos(angle), cy + radius * sin(angle));
+  }
+  glEnd();
+}
+
+/// @brief Draws a pill (stadium) as requested
+/// @param xStart First endpoint of the pill
+/// @param xEnd Second endpoint of the pill
+/// @param y Y-pos of the pill
+/// @param height Height of the pill
+/// @param color Color of the pill
+void drawPill(double xStart, double xEnd, double y, double height, chai3d::cColorf color) {
+  if (xEnd < xStart) {
+    xEnd = xStart;
+  }
+  drawRect(xStart, y - height / 2.0, xEnd - xStart, height, color);
+  drawCircle(xStart, y, height / 2.0, color);
+  drawCircle(xEnd, y, height / 2.0, color);
+}
+
+/**
+ * @brief Callback triggered when the framebuffer size changes.
+ */
+void framebufferSizeCallback(GLFWwindow *a_window, int a_width, int a_height) {
+  // update framebuffer (pixel) size used for rendering
+  width = a_width;
+  height = a_height;
+}
+
+chai3d::cVector3d scaledToRadius(const cVector3d &position, double radius) {
+  double length = position.length();
+  if (length <= 1e-12) {
+    return cVector3d(0.0, 0.0, radius);
+  }
+  return position *(radius / length);
 }

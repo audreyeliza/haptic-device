@@ -7,6 +7,8 @@
 
 #include "atom.h"
 
+const double DIST_SCALE = 0.02;
+
 struct AseStructureData {
     std::vector<std::array<double, 3>> positions;
     std::vector<int> atomicNumbers;
@@ -25,7 +27,7 @@ class Calculator {
     // Note: any other values used in this function should be private variables
     // For good design, anything that is expected to change frequently should be included in the function call. In our case, that is only positions.
     // You could get a nasty unreported error by relying too much on these private parameters
-    virtual std::vector<std::vector<double>> getFandU(std::vector<Atom*>& spheres) = 0;
+    virtual std::vector<std::vector<double>> getFandU(std::vector<Atom*>& atoms) = 0;
     virtual void setTemperature(double temperature) {}
 };
 
@@ -44,7 +46,7 @@ class morseCalculator:public Calculator {
       forceDamping = fd;
       distanceScale = ds;
     }
-    vector<vector<double>> getFandU(vector<Atom*>& spheres);
+    vector<vector<double>> getFandU(vector<Atom*>& atoms);
     double getMorseEnergy(double distance);
     double getMorseForce(double distance);
 };
@@ -60,7 +62,7 @@ class ljCalculator:public Calculator {
       epsilon = e;
       distanceScale = ds;
     }
-    vector<vector<double>> getFandU(vector<Atom*>& spheres);
+    vector<vector<double>> getFandU(vector<Atom*>& atoms);
     double getLennardJonesEnergy(double distance);
     double getLennardJonesForce(double distance);
 };
@@ -77,7 +79,7 @@ class aseCalculator:public Calculator {
     explicit aseCalculator(const std::string& cName,
                            const std::array<double, 9>& cell,
                            const std::array<int, 3>& pbc);
-    std::vector<std::vector<double>> getFandU(std::vector<Atom*>& spheres);
+    std::vector<std::vector<double>> getFandU(std::vector<Atom*>& atoms);
     void setTemperature(double temperature) override;
 };
 

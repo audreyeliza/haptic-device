@@ -66,8 +66,8 @@ string buildStatus() {
   size_t atomCount;
   {
     lock_guard<recursive_mutex> lock(sceneMutex);
-    atomCount = spheres.size();
-    for (Atom *atom : spheres) {
+    atomCount = atoms.size();
+    for (Atom *atom : atoms) {
       if (atom->isAnchor()) {
         anchored++;
       }
@@ -92,7 +92,6 @@ string buildStatus() {
       << " render_atoms=" << (renderAtoms.load() ? "true" : "false")
       << " render_forces=" << (renderForceVectors.load() ? "true" : "false")
       << " render_bonds=" << (renderBonds.load() ? "true" : "false")
-      << " settling_err=" << settlingError.load()
       << " k_return=" << kReturn.load()
       << " k_dampen=" << kDampen.load()
       << " return_delay=" << returnDelaySeconds.load()
@@ -172,18 +171,6 @@ string handleCommand(const string &line) {
       }
       renderBonds.store(value == "true");
       return "OK";
-    } else if (key == "settling_err") {
-      try {
-        size_t consumed = 0;
-        double parsed = stod(value, &consumed);
-        if (consumed != value.size() || !setLiveSettlingError(parsed)) {
-          return "ERR settling_err must be a number between " +
-                 to_string(MIN_SETTLING_ERROR) + " and " + to_string(MAX_SETTLING_ERROR);
-        }
-      } catch (const exception &) {
-        return "ERR settling_err must be a valid number";
-      }
-      return "OK";
     } else if (key == "k_return") {
       try {
         size_t consumed = 0;
@@ -230,6 +217,53 @@ string handleCommand(const string &line) {
         }
       } catch (const exception &) {
         return "ERR force_scale must be a valid number";
+      }
+      return "OK";
+    // Repeat code can be condensed
+    } else if (key == "force_scale") {
+      try {
+        size_t consumed = 0;
+        double parsed = stod(value, &consumed);
+        if (consumed != value.size() || !setLiveMaxOutput(parsed)) {
+          return "ERR force_scale must be a number between " +
+                 to_string(MIN_FORCE_SCALE) + " and " + to_string(MAX_FORCE_SCALE);
+        }
+      } catch (const exception &) {
+        return "ERR force_scale must be a valid number";
+      }
+      return "OK";
+    // Repeat code can be condensed
+    } else if (key == "repeat_x") {
+      try {
+        size_t consumed = 0;
+        int parsed =  static_cast<int>(stod(value, &consumed));
+        if (consumed != value.size() || !setLiveRepeatX(parsed)) {
+          return "ERR repeat_x; something went wrong!";
+        }
+      } catch (const exception &) {
+        return "ERR repeat_x must be a valid number";
+      }
+      return "OK";
+    } else if (key == "repeat_y") {
+      try {
+        size_t consumed = 0;
+        int parsed =  static_cast<int>(stod(value, &consumed));
+        if (consumed != value.size() || !setLiveRepeatY(parsed)) {
+          return "ERR repeat_y; something went wrong!";
+        }
+      } catch (const exception &) {
+        return "ERR repeat_y must be a valid number";
+      }
+      return "OK";
+    } else if (key == "repeat_z") {
+      try {
+        size_t consumed = 0;
+        int parsed =  static_cast<int>(stod(value, &consumed));
+        if (consumed != value.size() || !setLiveRepeatZ(parsed)) {
+          return "ERR repeat_z; something went wrong!";
+        }
+      } catch (const exception &) {
+        return "ERR repeat_z must be a valid number";
       }
       return "OK";
     }

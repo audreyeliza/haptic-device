@@ -45,13 +45,19 @@ private:
   // reports motion relative to this reference rather than the raw angle.
   float m_referenceAngle;
 
-  // Capstan/cable calibration. metersPerRadian = drum radius (arc length
-  // s = r*theta): 32mm drum diameter / 2 = 16mm = 0.016m, direct-drive on
-  // the motor shaft with no additional gear/pulley reduction stage.
+  // Capstan/cable calibration. The nominal 32mm-drum value (0.016 m/rad,
+  // direct-drive, no gear/pulley reduction) undershot the real mechanism:
+  // measured by cranking the carriage between its true left/right stops
+  // (480mm apart, see kCarriageTravelMeters in tools/chai3d_visualizer.cpp)
+  // and reading the resulting x= HUD value at the right stop (0.4158m
+  // against the old constant), then rescaling: 0.016 * (0.48 / 0.4158).
+  // Cable stretch/slip or an inexact drum diameter likely account for the
+  // gap from the nominal value - retune the same way if the mechanism
+  // changes.
   // newtonsPerVolt is still a PLACEHOLDER - retune once real force output is
   // measured (it scales inversely with the same drum radius: smaller radius
   // means more force per volt, larger radius means less).
-  static constexpr double metersPerRadian = 0.016;
+  static constexpr double metersPerRadian = 0.018470;
   static constexpr double newtonsPerVolt = 1.0;
 };
 

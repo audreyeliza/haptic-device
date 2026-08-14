@@ -23,6 +23,17 @@ cLabel *labelRates;
 cShapeSphere *cursor;
 cShapeLine *track;
 
+// Physical carriage travel, left stop to right stop, measured by hand in
+// meters. calibrate() (called on device open, below) zeroes getPosition() at
+// whatever the shaft angle is when the program starts - so crank the
+// carriage to its true left stop *before* launching this program, and the
+// track drawn from this constant will line up with the left stop at x=0 and
+// the right stop at x=kCarriageTravelMeters. If shaftAngle increases when
+// the carriage moves left instead of right, this value (and metersPerRadian
+// in customHapticDevice.h) should be negative so the ball still slides
+// rightward with the physical carriage.
+constexpr double kCarriageTravelMeters = 0.48;
+
 bool simulationRunning = false;
 bool simulationFinished = true;
 cFrequencyCounter freqCounterGraphics;
@@ -164,8 +175,11 @@ int main(int argc, char *argv[]) {
   camera = new cCamera(world);
   world->addChild(camera);
   // Looking down the Y axis so X-axis shaft motion reads as clear left/right
-  // screen motion, rather than toward/away from the camera.
-  camera->set(cVector3d(0.0, -0.5, 0.1), cVector3d(0.0, 0.0, 0.0), cVector3d(0.0, 0.0, 1.0));
+  // screen motion, rather than toward/away from the camera. Framed on the
+  // midpoint of the track (below) and pulled back far enough that the full
+  // kCarriageTravelMeters span fits in view.
+  camera->set(cVector3d(kCarriageTravelMeters / 2.0, -1.0, 0.1),
+              cVector3d(kCarriageTravelMeters / 2.0, 0.0, 0.0), cVector3d(0.0, 0.0, 1.0));
   camera->setClippingPlanes(0.01, 10.0);
 
   light = new cDirectionalLight(world);
@@ -174,12 +188,14 @@ int main(int argc, char *argv[]) {
   light->setDir(0.0, 1.0, -0.5);
 
   // Fixed reference track along X so the cursor's motion has something to
-  // move against - metersPerRadian in customHapticDevice.h maps about
-  // +/-5 rad of shaft rotation onto this +/-0.1m span. shaft_angle
-  // accumulates without wrapping, so sustained cranking easily exceeds this
-  // and pushes the cursor off-track - the on-screen x= readout (not just the
-  // ball position) is the reliable way to confirm motion is being tracked.
-  track = new cShapeLine(cVector3d(-0.1, 0.0, 0.0), cVector3d(0.1, 0.0, 0.0));
+  // move against, sized to the physical carriage's full travel (see
+  // kCarriageTravelMeters above) so the ball reaching the end of the line
+  // matches the carriage reaching its physical stop. If the ball still runs
+  // off the end before the real stop (or stops short of it), metersPerRadian
+  // in customHapticDevice.h is the other placeholder to retune: crank to the
+  // right stop, read the "x=" HUD value (call it x_measured), and set
+  // metersPerRadian = metersPerRadian * (kCarriageTravelMeters / x_measured).
+  track = new cShapeLine(cVector3d(0.0, 0.0, 0.0), cVector3d(kCarriageTravelMeters, 0.0, 0.0));
   track->m_colorPointA.setGrayLevel(0.4f);
   track->m_colorPointB.setGrayLevel(0.4f);
   track->setLineWidth(2);

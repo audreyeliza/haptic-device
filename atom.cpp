@@ -5,497 +5,309 @@
 #include <tuple>
 #include <GLFW/glfw3.h>
 
-using namespace std;
-using namespace chai3d;
+// array of atom stringnames by atomic number
+const string ATOM_STRINGS[119] = { "There is no atomic no. 0!",
+        "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S",
+        "Cl", "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga",
+        "Ge", "As", "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd",
+        "Ag", "Cd", "In", "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm",
+        "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "W", "Re", "Os",
+        "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa",    
+        "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg",
+        "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh","Fl", "Mc", "Lv", "Ts", "Og"
+};
 
-// map of atom stringnames by atomic number
-std::unordered_map<int, std::string> atomStringNames({
-    {1, "H"},
-    {2, "He"},
-    {3, "Li"},
-    {4, "Be"},
-    {5, "B"},
-    {6, "C"},
-    {7, "N"},
-    {8, "O"},
-    {9, "F"},
-    {10, "Ne"},
-    {11, "Na"},
-    {12, "Mg"},
-    {13, "Al"},
-    {14, "Si"},
-    {15, "P"},
-    {16, "S"},
-    {17, "Cl"},
-    {18, "Ar"},
-    {19, "K"},
-    {20, "Ca"},
-    {21, "Sc"},
-    {22, "Ti"},
-    {23, "V"},
-    {24, "Cr"},
-    {25, "Mn"},
-    {26, "Fe"},
-    {27, "Co"},
-    {28, "Ni"},
-    {29, "Cu"},
-    {30, "Zn"},
-    {31, "Ga"},
-    {32, "Ge"},
-    {33, "As"},
-    {34, "Se"},
-    {35, "Br"},
-    {36, "Kr"},
-    {37, "Rb"},
-    {38, "Sr"},
-    {39, "Y"},
-    {40, "Zr"},
-    {41, "Nb"},
-    {42, "Mo"},
-    {43, "Tc"},
-    {44, "Ru"},
-    {45, "Rh"},
-    {46, "Pd"},
-    {47, "Ag"},
-    {48, "Cd"},
-    {49, "In"},
-    {50, "Sn"},
-    {51, "Sb"},
-    {52, "Te"},
-    {53, "I"},
-    {54, "Xe"},
-    {55, "Cs"},
-    {56, "Ba"},
-    {57, "La"},
-    {58, "Ce"},
-    {59, "Pr"},
-    {60, "Nd"},
-    {61, "Pm"},
-    {62, "Sm"},
-    {63, "Eu"},
-    {64, "Gd"},
-    {65, "Tb"},
-    {66, "Dy"},
-    {67, "Ho"},
-    {68, "Er"},
-    {69, "Tm"},
-    {70, "Yb"},
-    {71, "Lu"},
-    {72, "Hf"},
-    {73, "Ta"},
-    {74, "W"},
-    {75, "Re"},
-    {76, "Os"},
-    {77, "Ir"},
-    {78, "Pt"},
-    {79, "Au"},
-    {80, "Hg"},
-    {81, "Tl"},
-    {82, "Pb"},
-    {83, "Bi"},
-    {84, "Po"},
-    {85, "At"},
-    {86, "Rn"},
-    {87, "Fr"},
-    {88, "Ra"},
-    {89, "Ac"},
-    {90, "Th"},
-    {91, "Pa"},
-    {92, "U"},
-    {93, "Np"},
-    {94, "Pu"},
-    {95, "Am"},
-    {96, "Cm"},
-    {97, "Bk"},
-    {98, "Cf"},
-    {99, "Es"},
-    {100, "Fm"},
-    {101, "Md"},
-    {102, "No"},
-    {103, "Lr"},
-    {104, "Rf"},
-    {105, "Db"},
-    {106, "Sg"},
-    {107, "Bh"},
-    {108, "Hs"},
-    {109, "Mt"},
-    {110, "Ds"}, 
-    {111, "Rg"}, 
-    {112, "Cn"}, 
-    {113, "Nh"},
-    {114, "Fl"},
-    {115, "Mc"},
-    {116, "Lv"},
-    {117, "Ts"},
-    {118, "Og"}
-});
+// array of atom weights by atomic number
+const double ATOM_WEIGHTS[119] = {
+    0.0, 1.008, 4.003, 7.0, 9.012, 10.81, 12.011, 14.007, 15.999, 18.998, 20.18, 22.99, 24.305,
+    26.982, 28.085, 30.974, 32.07, 35.45, 39.9, 39.098, 40.08, 44.956, 47.867, 50.942, 51.996,
+    54.938, 55.84, 58.933, 58.693, 63.55, 65.4, 69.723, 72.63, 74.922, 78.97, 79.9, 83.8, 85.468, 
+    87.62, 88.906, 91.22, 92.906, 95.95, 96.906, 101.1, 102.906, 106.42, 107.868, 112.41, 114.818,
+    118.71, 121.76, 127.6, 126.905, 131.29, 132.905, 137.33, 138.906, 140.116, 140.908, 144.24,
+    144.913, 150.4, 151.964, 157.25, 158.925, 162.5, 164.93, 167.26, 168.934, 173.05, 174.967,
+    178.49, 180.948, 183.84, 186.207, 190.2, 192.22, 195.08, 196.967, 200.59, 204.383, 207, 208.98,
+    208.982, 209.987, 222.018, 223.02, 226.025, 227.028, 232.038, 231.036, 238.029, 237.048,
+    244.064, 243.061, 247.07, 247.07, 251.08, 252.083, 257.095, 258.098, 259.101, 266.12, 267.122, 
+    268.126, 269.128, 270.133, 269.134, 277.154, 282.166, 282.169, 286.179, 286.182, 290.192,
+    290.196, 293.205, 294.11, 295.216
+};
 
-// map of atom weights by atomic number
-std::unordered_map<int, double> atomWeights({
-    {1, 1.007},
-    {2, 4.002},
-    {3, 6.941},
-    {4, 9.012},
-    {5, 10.811},
-    {6, 12.011},
-    {7, 14.007},
-    {8, 15.999},
-    {9, 18.998},
-    {10, 20.18},
-    {11, 22.99},
-    {12, 24.305},
-    {13, 26.982},
-    {14, 28.086},
-    {15, 30.974},
-    {16, 32.065},
-    {17, 35.453},
-    {18, 39.948},
-    {19, 39.098},
-    {20, 40.078},
-    {21, 44.956},
-    {22, 47.867},
-    {23, 50.942},
-    {24, 51.996},
-    {25, 54.938},
-    {26, 55.845},
-    {27, 58.933},
-    {28, 58.693},
-    {29, 63.546},
-    {30, 65.38},
-    {31, 69.723},
-    {32, 72.64},
-    {33, 74.922},
-    {34, 78.96},
-    {35, 79.904},
-    {36, 83.798},
-    {37, 85.468},
-    {38, 87.62},
-    {39, 88.906},
-    {40, 91.224},
-    {41, 92.906},
-    {42, 95.96},
-    {43, 98},
-    {44, 101.07},
-    {45, 102.906},
-    {46, 106.42},
-    {47, 107.868},
-    {48, 112.411},
-    {49, 114.818},
-    {50, 118.71},
-    {51, 121.76},
-    {52, 127.6},
-    {53, 126.904},
-    {54, 131.293},
-    {55, 132.905},
-    {56, 137.327},
-    {57, 138.905},
-    {58, 140.116},
-    {59, 140.908},
-    {60, 144.242},
-    {61, 145},
-    {62, 150.36},
-    {63, 151.964},
-    {64, 157.25},
-    {65, 158.925},
-    {66, 162.5},
-    {67, 164.93},
-    {68, 167.259},
-    {69, 168.934},
-    {70, 173.054},
-    {71, 174.967},
-    {72, 178.49},
-    {73, 180.948},
-    {74, 183.84},
-    {75, 186.207},
-    {76, 190.23},
-    {77, 192.217},
-    {78, 195.084},
-    {79, 196.967},
-    {80, 200.59},
-    {81, 204.383},
-    {82, 207.2},
-    {83, 208.98},
-    {84, 210},
-    {85, 210},
-    {86, 222},
-    {87, 223},
-    {88, 226},
-    {89, 227},
-    {90, 232.038},
-    {91, 231.036},
-    {92, 238.029},
-    {93, 237},
-    {94, 244},
-    {95, 243},
-    {96, 247},
-    {97, 247},
-    {98, 251},
-    {99, 252},
-    {100, 257},
-    {101, 258},
-    {102, 259},
-    {103, 262},
-    {104, 261},
-    {105, 262},
-    {106, 266},
-    {107, 264},
-    {108, 267},
-    {109, 268},
-    {110, 271},
-    {111, 272},
-    {112, 285},
-    {113, 284},
-    {114, 289},
-    {115, 288},
-    {116, 292},
-    {117, 295},
-    {118, 294}
-});
 
 // map of atom colors by atomic number, using the standard Jmol/CPK color
 // scheme so elements read in from structure files (e.g. POSCAR) render with
-// their conventional colors instead of falling back to the default magenta.
-std::unordered_map<int, std::tuple<const GLfloat, const GLfloat, const GLfloat>> atomColors({
-    {0, {255, 20, 147}},
-    {1, {255, 255, 255}},
-    {2, {217, 255, 255}},
-    {3, {204, 128, 255}},
-    {4, {194, 255, 0}},
-    {5, {255, 181, 181}},
-    {6, {144, 144, 144}},
-    {7, {48, 80, 248}},
-    {8, {255, 13, 13}},
-    {9, {144, 224, 80}},
-    {10, {179, 227, 245}},
-    {11, {171, 92, 242}},
-    {12, {138, 255, 0}},
-    {13, {191, 166, 166}},
-    {14, {240, 200, 160}},
-    {15, {255, 128, 0}},
-    {16, {255, 255, 48}},
-    {17, {31, 240, 31}},
-    {18, {128, 209, 227}},
-    {19, {143, 64, 212}},
-    {20, {61, 255, 0}},
-    {21, {230, 230, 230}},
-    {22, {191, 194, 199}},
-    {23, {166, 166, 171}},
-    {24, {138, 153, 199}},
-    {25, {156, 122, 199}},
-    {26, {224, 102, 51}},
-    {27, {240, 144, 160}},
-    {28, {80, 208, 80}},
-    {29, {200, 128, 51}},
-    {30, {125, 128, 176}},
-    {31, {194, 143, 143}},
-    {32, {102, 143, 143}},
-    {33, {189, 128, 227}},
-    {34, {255, 161, 0}},
-    {35, {166, 41, 41}},
-    {36, {92, 184, 209}},
-    {37, {112, 46, 176}},
-    {38, {0, 255, 0}},
-    {39, {148, 255, 255}},
-    {40, {148, 224, 224}},
-    {41, {115, 194, 201}},
-    {42, {84, 181, 181}},
-    {43, {59, 158, 158}},
-    {44, {36, 143, 143}},
-    {45, {10, 125, 140}},
-    {46, {0, 105, 133}},
-    {47, {192, 192, 192}},
-    {48, {255, 217, 143}},
-    {49, {166, 117, 115}},
-    {50, {102, 128, 128}},
-    {51, {158, 99, 181}},
-    {52, {212, 122, 0}},
-    {53, {148, 0, 148}},
-    {54, {66, 158, 176}},
-    {55, {87, 23, 143}},
-    {56, {0, 201, 0}},
-    {57, {112, 212, 255}},
-    {58, {255, 255, 199}},
-    {59, {217, 255, 199}},
-    {60, {199, 255, 199}},
-    {61, {163, 255, 199}},
-    {62, {143, 255, 199}},
-    {63, {97, 255, 199}},
-    {64, {69, 255, 199}},
-    {65, {48, 255, 199}},
-    {66, {31, 255, 199}},
-    {67, {0, 255, 156}},
-    {68, {0, 230, 117}},
-    {69, {0, 212, 82}},
-    {70, {0, 191, 56}},
-    {71, {0, 171, 36}},
-    {72, {77, 194, 255}},
-    {73, {77, 166, 255}},
-    {74, {33, 148, 214}},
-    {75, {38, 125, 171}},
-    {76, {38, 102, 150}},
-    {77, {23, 84, 135}},
-    {78, {208, 208, 224}},
-    {79, {255, 209, 35}},
-    {80, {184, 184, 208}},
-    {81, {166, 84, 77}},
-    {82, {87, 89, 97}},
-    {83, {158, 79, 181}},
-    {84, {171, 92, 0}},
-    {85, {117, 79, 69}},
-    {86, {66, 130, 150}},
-    {87, {66, 0, 102}},
-    {88, {0, 125, 0}},
-    {89, {112, 171, 250}},
-    {90, {0, 186, 255}},
-    {91, {0, 161, 255}},
-    {92, {0, 143, 255}},
-    {93, {0, 128, 255}},
-    {94, {0, 107, 255}},
-    {95, {84, 92, 242}},
-    {96, {120, 92, 227}},
-    {97, {138, 79, 227}},
-    {98, {161, 54, 212}},
-    {99, {179, 31, 212}},
-    {100, {179, 31, 186}},
-    {101, {179, 13, 166}},
-    {102, {189, 13, 135}},
-    {103, {199, 0, 102}},
-    {104, {204, 0, 89}},
-    {105, {209, 0, 79}},
-    {106, {217, 0, 69}},
-    {107, {224, 0, 56}},
-    {108, {230, 0, 46}},
-    {109, {235, 0, 38}}
-});
+// their conventional colors instead of falling back to the default magenta
 
-Atom::Atom(double radius, int atomicNumber, cColorf color)
-: cShapeSphere(radius) {
-    anchor = false;
-    current = false;
-    repeating = false;
-    selected = false;
-    velVector = new cShapeLine(cVector3d(0, 0, 0), cVector3d(0, 0, 0));
-    force.zero();
-    this->atomicNumber = atomicNumber;
-    // note - cColorf defaults to white, as such
-    // the default for atoms is also white (see the header file)
-    base_color = color;
-    
-    // set the color
-    refreshMaterial();
-}
+const std::tuple<const GLfloat, const GLfloat, const GLfloat> ATOM_COLORS[110] = {
+    {255, 20, 147}, // fallback color; Elements past 110 (Ds) are magenta
+    {255, 255, 255},
+    {217, 255, 255},
+    {204, 128, 255},
+    {194, 255, 0},
+    {255, 181, 181},
+    {144, 144, 144},
+    {48, 80, 248},
+    {255, 13, 13},
+    {144, 224, 80},
+    {179, 227, 245},
+    {171, 92, 242},
+    {138, 255, 0},
+    {191, 166, 166},
+    {240, 200, 160},
+    {255, 128, 0},
+    {255, 255, 48},
+    {31, 240, 31},
+    {128, 209, 227},
+    {143, 64, 212},
+    {61, 255, 0},
+    {230, 230, 230},
+    {191, 194, 199},
+    {166, 166, 171},
+    {138, 153, 199},
+    {156, 122, 199},
+    {224, 102, 51},
+    {240, 144, 160},
+    {80, 208, 80},
+    {200, 128, 51},
+    {125, 128, 176},
+    {194, 143, 143},
+    {102, 143, 143},
+    {189, 128, 227},
+    {255, 161, 0},
+    {166, 41, 41},
+    {92, 184, 209},
+    {112, 46, 176},
+    {0, 255, 0},
+    {148, 255, 255},
+    {148, 224, 224},
+    {115, 194, 201},
+    {84, 181, 181},
+    {59, 158, 158},
+    {36, 143, 143},
+    {10, 125, 140},
+    {0, 105, 133},
+    {192, 192, 192},
+    {255, 217, 143},
+    {166, 117, 115},
+    {102, 128, 128},
+    {158, 99, 181},
+    {212, 122, 0},
+    {148, 0, 148},
+    {66, 158, 176},
+    {87, 23, 143},
+    {0, 201, 0},
+    {112, 212, 255},
+    {255, 255, 199},
+    {217, 255, 199},
+    {199, 255, 199},
+    {163, 255, 199},
+    {143, 255, 199},
+    {97, 255, 199},
+    {69, 255, 199},
+    {48, 255, 199},
+    {31, 255, 199},
+    {0, 255, 156},
+    {0, 230, 117},
+    {0, 212, 82},
+    {0, 191, 56},
+    {0, 171, 36},
+    {77, 194, 255},
+    {77, 166, 255},
+    {33, 148, 214},
+    {38, 125, 171},
+    {38, 102, 150},
+    {23, 84, 135},
+    {208, 208, 224},
+    {255, 209, 35},
+    {184, 184, 208},
+    {166, 84, 77},
+    {87, 89, 97},
+    {158, 79, 181},
+    {171, 92, 0},
+    {117, 79, 69},
+    {66, 130, 150},
+    {66, 0, 102},
+    {0, 125, 0},
+    {112, 171, 250},
+    {0, 186, 255},
+    {0, 161, 255},
+    {0, 143, 255},
+    {0, 128, 255},
+    {0, 107, 255},
+    {84, 92, 242},
+    {120, 92, 227},
+    {138, 79, 227},
+    {161, 54, 212},
+    {179, 31, 212},
+    {179, 31, 186},
+    {179, 13, 166},
+    {189, 13, 135},
+    {199, 0, 102},
+    {204, 0, 89},
+    {209, 0, 79},
+    {217, 0, 69},
+    {224, 0, 56},
+    {230, 0, 46},
+    {235, 0, 38},
+};
 
-Atom::Atom(double radius, int atomicNumber) : cShapeSphere(radius) {
-    anchor = false;
-    current = false;
-    repeating = false;
-    selected = false;
-    velVector = new cShapeLine(cVector3d(0, 0, 0), cVector3d(0, 0, 0));
-    force.zero();
-    this->atomicNumber = atomicNumber;
-
-    // check if atomic number has a registered color. If not, use 0 (magenta)
-    std::tuple<const GLfloat, const GLfloat, const GLfloat> col = 
-        (atomColors.find(atomicNumber) == atomColors.end()) ? atomColors[0] : atomColors[atomicNumber];
-
-    base_color = cColorf();
-    base_color.set(get<0>(col)/255, get<1>(col)/255, get<2>(col)/255);
-    refreshMaterial();
-}
-
-void Atom::refreshMaterial() {
-    m_material->m_emission.set(0.0f, 0.0f, 0.0f, 1.0f);
+/**
+ * @brief Refreshes the material of the atom, changing the atom's color to red, blue, or
+ * black, respectively based on if the atom is selected/curent, anchored, or repeating.
+ * Otherwise, the atom reverts to its JMol coloring.
+ */
+void Atom::refreshMaterial(chai3d::cShapeSphere *sphere) {
+    sphere->m_material->m_emission.set(0.0f, 0.0f, 0.0f, 1.0f);
     if (selected || current) {
-        m_material->setRed();
+        sphere->m_material->setRed();
     } else if (anchor) {
-        m_material->setBlue();
+        sphere->m_material->setBlue();
     } else if (repeating) {
-        m_material->setBlack();
+        sphere->m_material->setBlack();
     } else {
-        m_material->setColor(base_color);
+        sphere->m_material->setColor(color);
     }
 }
 
-bool Atom::isAnchor() { return anchor; }
+void Atom::setPeriodics(int x, int y, int z) {
+    std::cout << "Updating periodics..." << std::endl;
+    for (auto& plane : periodics) {
+        for (auto& row : plane){
+            for (chai3d::cShapeSphere* s : row) {
+                getParent()->removeChild(s);  // detach BEFORE delete
+                delete s;                           // frees GL display list (needs GL ctx)
+            }
+        }
+    }
+    periodics.resize(x);
+    for (int i = 0; i < x; i++) {
+        periodics[i].resize(y);
+        for (int j = 0; j < y; j++) {
+            periodics[i][j].resize(z);
+            for (int k = 0; k < z; k++) {
+                periodics[i][j][k] = copy();
+                refreshMaterial(periodics[i][j][k]);
+                getParent()->addChild(periodics[i][j][k]);
+            }
+        }
+    } 
+}
+
+Atom::Atom(double radius, int atomicNum, chai3d::cWorld *world, cTexture2dPtr texture) : chai3d::cShapeSphere(radius) {
+    anchor = false;
+    current = false;
+    repeating = false;
+    selected = false;
+    velVector = new chai3d::cShapeLine(chai3d::cVector3d(0, 0, 0), chai3d::cVector3d(0, 0, 0));
+    force.zero();
+    prevForce.zero();
+    prevPos = getLocalPos();
+
+    atomicNumber = atomicNum;
+
+    std::tuple<GLfloat, GLfloat, GLfloat> colorTuple;
+    if (atomicNum <= 109) {
+        colorTuple = ATOM_COLORS[atomicNum];
+    } else {
+        colorTuple = ATOM_COLORS[0];
+    }
+
+    color.set(get<0>(colorTuple)/255, get<1>(colorTuple)/255, get<2>(colorTuple)/255);
+    setUseCulling(true);
+    refreshMaterial(this);
+    setTexture(texture);
+    m_texture->setSphericalMappingEnabled(true);
+    setUseTexture(true);
+    world->addChild(this);
+}
+
+const std::vector<std::vector<std::vector<chai3d::cShapeSphere*>>>& Atom::getPeriodics() const {
+    return periodics;
+}
+
+bool Atom::isAnchor() const { 
+    return anchor; 
+}
 
 void Atom::setAnchor(bool newAnchor) {
     if (newAnchor) {
         current = false;
     }
     anchor = newAnchor;
-    refreshMaterial();
+    refreshMaterial(this);
 }
 
-bool Atom::isCurrent() { return current; }
+bool Atom::isCurrent() const { 
+    return current; 
+}
 
 void Atom::setCurrent(bool newCurrent) {
     if (newCurrent) {
         anchor = false;  // cannot be both anchor and current
     }
     current = newCurrent;
-    refreshMaterial();
+    refreshMaterial(this);
 }
 
-bool Atom::isRepeating() { return repeating; }
+bool Atom::isRepeating() const { 
+    return repeating; 
+}
 
 void Atom::setRepeating(bool newRepeat) {
     if (newRepeat) {
-        anchor = false;
+        anchor = false; // cannot be both anchor and repeating
     }
     repeating = newRepeat;
-    refreshMaterial();
+    refreshMaterial(this);
 }
 
-bool Atom::isSelected() { return selected; }
+bool Atom::isSelected() const { 
+    return selected; 
+}
 
 void Atom::setSelected(bool newSelected) {
     selected = newSelected;
-    refreshMaterial();
+    refreshMaterial(this);
 }
 
-cVector3d Atom::getVelocity() { return velocity; }
+chai3d::cVector3d Atom::getVelocity() const { 
+    return velocity; 
+}
 
-void Atom::setVelocity(cVector3d newVel) { velocity = newVel; }
+void Atom::setVelocity(chai3d::cVector3d newVel) { 
+    velocity = newVel; 
+}
 
-cVector3d Atom::getForce() { return force; }
+chai3d::cVector3d Atom::getForce() const { 
+    return force; 
+}
 
-void Atom::setForce(cVector3d newForce) {
+void Atom::setForce(chai3d::cVector3d newForce) {
+    prevForce = force;
     force = newForce;  // Add exception for if controlled atom is in the same
     // location as the anchored atom
 }
 
-cShapeLine* Atom::getVelVector() { return velVector; }
-
-void Atom::setVelVector(cShapeLine* newVelVector) { velVector = newVelVector; }
-
-void Atom::updateVelVector() {
-    // Create a line representing the forces felt on the atom
-    cVector3d newPointNormalized = cAdd(this->getLocalPos(), this->getForce());
-    this->getForce().normalizer(newPointNormalized);
-    this->velVector->m_pointA =
-    cAdd(this->getLocalPos(), newPointNormalized * this->getRadius());
-    this->velVector->m_pointB =
-    cAdd(this->getVelVector()->m_pointA, this->getForce() * .005);
-    this->velVector->setLineWidth(5);
-
-    // Update the color based on the current status of the atom
-    if (current || selected) {
-        this->velVector->m_colorPointA.setRed();
-        this->velVector->m_colorPointB.setRed();
-    } else {
-        this->velVector->m_colorPointA.setBlack();
-        this->velVector->m_colorPointB.setBlack();
-    }
+cVector3d Atom::getPrevForce() const {
+    return prevForce;
 }
 
-void Atom::setInitialPosition(double spawn_dist) {
-    double phi = rand() / double(RAND_MAX) * 2 * M_PI;
-    double costheta = rand() / double(RAND_MAX) * 2 - 1;
-    double u = rand() / double(RAND_MAX);
-    double theta = acos(costheta);
-    double r = spawn_dist * cbrt(u);
-    setLocalPos(r * sin(theta) * cos(phi), r * sin(theta) * sin(phi),
-                r * cos(theta));
+cShapeLine* Atom::getVelVector() const { 
+    return velVector; 
+}
+
+void Atom::setVelVector(cShapeLine* newVelVector) { 
+    velVector = newVelVector;
+}
+
+void Atom::updateForceVector() {
+    cVector3d forceDir = this->getForce();
+    forceDir.normalize();
+    velVector->m_pointA = getLocalPos() + forceDir * getRadius();
+    velVector->m_colorPointA.setBlack();
+    velVector->m_colorPointB.setBlack();
+    const double FORCE_VECTOR_WIDTH = 3.0;
+    velVector->setLineWidth(FORCE_VECTOR_WIDTH);
+    velVector->m_pointB = velVector->m_pointA + getForce() * .005;
 }
 
 void Atom::setColor(cColorf color) {
@@ -505,14 +317,44 @@ void Atom::setColor(cColorf color) {
     }
 }
 
-int Atom::getAtomicNumber() const { return atomicNumber; }
-
-void Atom::setAtomicNumber( int num ) { atomicNumber = num; }
-
-string Atom::getElement() {
-    return atomStringNames[atomicNumber];
+int Atom::getAtomicNumber() const { 
+    return atomicNumber;
 }
 
-double Atom::getMass() {
-    return atomWeights[atomicNumber];
+void Atom::setAtomicNumber(int num) {
+    atomicNumber = num;
+}
+
+string Atom::getElement() const {
+    return ATOM_STRINGS[atomicNumber];
+}
+
+double Atom::getMass() const {
+    return ATOM_WEIGHTS[atomicNumber];
+}
+
+void Atom::addBufferedPos(chai3d::cVector3d pos) {
+    prevPos = getLatestPos();
+    positionBuffer.push(pos);
+}
+
+chai3d::cVector3d Atom::nextPos() {
+    cVector3d result = positionBuffer.front();
+    positionBuffer.pop();
+    return result;
+}
+
+chai3d::cVector3d Atom::getPrevPos() const {
+    return prevPos;
+}
+
+bool Atom::hasNextPos() const {
+    return !positionBuffer.empty();
+}
+
+chai3d::cVector3d Atom::getLatestPos() const {
+    if (positionBuffer.empty()) {
+        return getLocalPos();
+    }
+    return positionBuffer.back();
 }

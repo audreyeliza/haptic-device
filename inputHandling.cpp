@@ -7,32 +7,58 @@
 #include <mutex>
 #include <algorithm>
 
-int just_unanchored = 0;
-bool transparentAtoms = false;
+enum MouseState { 
+  MOUSE_IDLE,
+  MOUSE_SELECTION,
+  MOUSE_BOX_SELECTION
+};
+MouseState mouseState = MOUSE_IDLE;
+Atom *selectedAtom; // a pointer to the selected atom
 
-// CHAI3D renders into the framebuffer, which is measured in pixels. GLFW cursor
-// coordinates are in window coordinates, so derive the conversion from the
-// actual framebuffer/window ratio. This is more reliable than content scale on
-// macOS Retina displays, where the two can diverge depending on monitor/window
-// state.
-static void scaleCursorToPixels(double &a_x, double &a_y) {
+// offset between the position of the mmouse click on the object and the object reference frame
+// location.
+cVector3d selectedAtomOffset;
+
+cVector3d selectedPoint; // position of mouse click.
+
+double selectionStartX;
+double selectionStartY;
+double selectionCurrentX;
+double selectionCurrentY;
+cShapeLine *selectionBoxLines[4] = {nullptr, nullptr, nullptr, nullptr};
+
+/**
+ * @brief Scales a window coordinate into a CHAI3D compatible framebuffer/pixel coordinate.
+ * @param window the window to use to scale
+ * @param a_x the x-pos of the coordinate
+ * @param a_y the y-pos of the coordinate
+ */
+static void scaleCursorToPixels(GLFWwindow *window, double &a_x, double &a_y) {
+  // CHAI3D renders into the framebuffer, which is measured in pixels. GLFW cursor
+  // coordinates are in window coordinates, so derive the conversion from the
+  // actual framebuffer/window ratio. This is more reliable than content scale on
+  // macOS Retina displays, where the two can diverge depending on monitor/window
+  // state.
   int windowWidth = 0;
   int windowHeight = 0;
-  int framebufferWidth = 0;
-  int framebufferHeight = 0;
+ 
   glfwGetWindowSize(window, &windowWidth, &windowHeight);
-  glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
-  if (windowWidth <= 0 || windowHeight <= 0) {
-    return;
+  
+  if (windowWidth > 0 && windowHeight > 0) {
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+    a_x *= static_cast<double>(framebufferWidth) / static_cast<double>(windowWidth);
+    a_y *= static_cast<double>(framebufferHeight) / static_cast<double>(windowHeight);
   }
-
-  a_x *= static_cast<double>(framebufferWidth) / static_cast<double>(windowWidth);
-  a_y *= static_cast<double>(framebufferHeight) / static_cast<double>(windowHeight);
 }
 
+/**
+ * @brief Initializes the selection box lines if they are still null.
+ */
 static void ensureSelectionBoxLines() {
   for (int i = 0; i < 4; i++) {
-    if (selectionBoxLines[i] == NULL) {
+    if (selectionBoxLines[i] == nullptr) {
       selectionBoxLines[i] = new cShapeLine(cVector3d(0, 0, 0),
                                             cVector3d(0, 0, 0));
       selectionBoxLines[i]->setLineWidth(2);
@@ -44,6 +70,9 @@ static void ensureSelectionBoxLines() {
   }
 }
 
+/**
+ * @brief Makes the selection box visible.
+ */
 static void setSelectionBoxVisible(bool visible) {
   ensureSelectionBoxLines();
   for (int i = 0; i < 4; i++) {
@@ -51,6 +80,9 @@ static void setSelectionBoxVisible(bool visible) {
   }
 }
 
+/**
+ * @brief Updates the selection box based on selection starts.
+ */
 static void updateSelectionBoxLines() {
   ensureSelectionBoxLines();
   const double left = std::min(selectionStartX, selectionCurrentX);
@@ -68,6 +100,13 @@ static void updateSelectionBoxLines() {
   selectionBoxLines[3]->m_pointB = cVector3d(left, bottom, 0);
 }
 
+/**
+ * @brief Projects the atom to the screen, getting the screen coordinates the atom is at
+ * @param atom the atom to project
+ * @param screenX the variable to store the x-pos
+ * @param screenY the variable to store the y-pos
+ * @return true if projection succeeded, false if projection is not possible
+ */
 static bool projectAtomToScreen(Atom *atom, double &screenX, double &screenY) {
   cVector3d atomPos = atom->getLocalPos();
   cVector3d toAtom = atomPos - camera->getLocalPos();
@@ -82,6 +121,9 @@ static bool projectAtomToScreen(Atom *atom, double &screenX, double &screenY) {
   return true;
 }
 
+/**
+ * @brief Selects atoms that are within the selection box.
+ */
 static void selectAtomsInBox() {
   const double left = std::min(selectionStartX, selectionCurrentX);
   const double right = std::max(selectionStartX, selectionCurrentX);
@@ -89,7 +131,7 @@ static void selectAtomsInBox() {
   const double top = std::max(selectionStartY, selectionCurrentY);
 
   bool anySelected = false;
-  for (Atom *atom : spheres) {
+  for (Atom *atom : atoms) {
     double screenX = 0.0;
     double screenY = 0.0;
     bool inside = projectAtomToScreen(atom, screenX, screenY) &&
@@ -100,42 +142,51 @@ static void selectAtomsInBox() {
   }
 
   if (anySelected) {
-    for (Atom *atom : spheres) {
+    for (Atom *atom : atoms) {
       atom->setCurrent(false);
     }
   }
 }
 
-void toggleFullscreen() {
+/**
+ * @brief Toggles fullscreen on for the given window
+ * @param window the window to make fullscreen
+ */
+void toggleFullscreen(GLFWwindow* window) {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
+  static bool fullscreen = false; // Enables the full-screen window mode when true.
   fullscreen = !fullscreen;
   GLFWmonitor *monitor = glfwGetPrimaryMonitor();
   const GLFWvidmode *mode = glfwGetVideoMode(monitor);
   if (fullscreen) {
     glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height,
                           mode->refreshRate);
-    glfwSwapInterval(swapInterval);
+    glfwSwapInterval(SWAP_INTERVAL);
   } else {
     int w = 2. * mode->height;
     int h = 1.5 * mode->height;
     int x = 1.5 * (mode->width - w);
     int y = 1.5 * (mode->height - h);
-    glfwSetWindowMonitor(window, NULL, x, y, w, h, mode->refreshRate);
-    glfwSwapInterval(swapInterval);
+    glfwSetWindowMonitor(window, nullptr, x, y, w, h, mode->refreshRate);
+    glfwSwapInterval(SWAP_INTERVAL);
   }
 }
 
+/**
+ * @brief Unanchors all atoms
+ */
 void unanchorAtoms() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
-  for (auto i{0}; i < spheres.size(); i++) {
-    if (spheres[i]->isAnchor()) {
-      spheres[i]->setAnchor(false);
+  for (auto i{0}; i < atoms.size(); i++) {
+    if (atoms[i]->isAnchor()) {
+      atoms[i]->setAnchor(false);
     }
   }
-  assert(just_unanchored = 5);
-  just_unanchored = 0;
 }
 
+/**
+ * @brief Takes a screenshot of the simulation
+ */
 void saveScreenshot() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   cImagePtr image = cImage::create();
@@ -144,7 +195,7 @@ void saveScreenshot() {
   camera->copyImageBuffer(image);
   scope->setShowEnabled(true);
   int index = 0;
-  string filename_stem = "lj" + to_string(spheres.size()) + "_";
+  string filename_stem = "lj" + to_string(atoms.size()) + "_";
   while (fileExists(filename_stem + to_string(index) + ".png")) {
     index++;
   }
@@ -152,6 +203,11 @@ void saveScreenshot() {
   screenshotCounter = 5000;
 }
 
+/**
+ * @brief Saves the current structure as a configuration file
+ * TODO: This method is pretty complicated... I can hardly trace how it works! It certainly needs
+ *       some comments/documentation to explain itself.
+ */
 void saveConFile() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   ofstream writeFile;
@@ -183,15 +239,22 @@ void saveConFile() {
   cout << "LOGGED AT " + date + " atoms" + to_string(index) + ".con" << endl;
 }
 
+/**
+ * @brief Anchors all atoms
+ */
 void anchorAtoms() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
-  for (auto i{0}; i < spheres.size(); i++) {
-    if (!spheres[i]->isAnchor() && !(spheres[i]->isCurrent())) {
-      spheres[i]->setAnchor(true);
+  for (auto i{0}; i < atoms.size(); i++) {
+    if (!atoms[i]->isAnchor() && !(atoms[i]->isCurrent())) {
+      atoms[i]->setAnchor(true);
     }
   }
 }
 
+/**
+ * @brief Moves the camera vertically
+ * @param up Whether the camera should move up or not. If false, the camera will move down.
+ */
 void moveCameraVertical(bool up) {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   int direction = up ? 1 : -1;
@@ -204,6 +267,10 @@ void moveCameraVertical(bool up) {
   updateCameraLabel(camera_pos, camera);
 }
 
+/**
+ * @brief Moves the camera horizontally
+ * @param right Whether the camera should move right or not. If false, the camera will move left.
+ */
 void moveCameraHorizontal(bool right) {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   int direction = right ? 1 : -1;
@@ -216,25 +283,34 @@ void moveCameraHorizontal(bool right) {
   updateCameraLabel(camera_pos, camera);
 }
 
+/**
+ * @brief Zooms the camera in
+ * @param zoomIn Whether the camera should zoom in or not. If false, the camera will zoom out.
+ */
 void zoomCamera(bool zoomIn) {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   int direction = zoomIn ? 1 : -1;
-  if ((direction == 1 && rho < 1) || (direction == -1 && rho > .15)) {
-    camera->setSphericalRadius(camera->getSphericalRadius() + .01 * direction);
-    rho = camera->getSphericalRadius();
+  double currentCameraRadius = camera->getSphericalRadius();
+  if ((direction == 1 && currentCameraRadius < 1) || (direction == -1 && currentCameraRadius > .15)) {
+    camera->setSphericalRadius(currentCameraRadius + .01 * direction);
     updateCameraLabel(camera_pos, camera);
   }
 }
 
+/**
+ * @brief Resets the camera's rotation and radius
+ */
 void resetCamera() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   camera->setSphericalPolarRad(0);
   camera->setSphericalAzimuthRad(0);
-  camera->setSphericalRadius(.35);
-  rho = .35;
+  camera->setSphericalRadius(CAMERA_RADIUS);
   updateCameraLabel(camera_pos, camera);
 }
 
+/**
+ * @brief Toggles the help panel on/off
+ */
 void toggleHelpPanel() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
   helpPanel->setShowPanel(!helpPanel->getShowPanel());
@@ -245,19 +321,21 @@ void toggleHelpPanel() {
   }
 }
 
-void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action,
-                 int a_mods) {
+/**
+ * @brief A callback to handle a key inputs. This callback handles all keyboard inputs/hotkeys
+ */
+void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action, int a_mods) {
+  const double KEYBOARD_MOVE = 5.0;
+  static bool transparentAtoms = false;
   if ((a_action != GLFW_PRESS) && (a_action != GLFW_REPEAT)) {
     return;
   } else if ((a_key == GLFW_KEY_ESCAPE) || (a_key == GLFW_KEY_Q)) {
     glfwSetWindowShouldClose(a_window, GLFW_TRUE);
   } else if (a_key == GLFW_KEY_F) {
-    toggleFullscreen();
+    toggleFullscreen(a_window);
   } else if (a_key == GLFW_KEY_U) {
     // action - unanchor all key
     unanchorAllAtoms();
-    assert(just_unanchored = 5);
-    just_unanchored = 0;
   } else if (a_key == GLFW_KEY_S) {
     saveScreenshot();
   } else if (a_key == GLFW_KEY_SPACE) {
@@ -269,17 +347,17 @@ void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action,
   } else if (a_key == GLFW_KEY_3 && a_action == GLFW_PRESS) {  // toggle bond rendering
     renderBonds = !renderBonds;
   } else if (a_key == GLFW_KEY_I) {  // move current atom up
-    moveCurrentAtom(0, 1, 0);
+    relCamApplyForceToCurrent(KEYBOARD_MOVE * chai3d::cVector3d(0, 1, 0));
   } else if (a_key == GLFW_KEY_K) {  // move current atom down
-    moveCurrentAtom(0, -1, 0);
+    relCamApplyForceToCurrent(KEYBOARD_MOVE * chai3d::cVector3d(0, -1, 0));
   } else if (a_key == GLFW_KEY_J) {  // move current atom left
-    moveCurrentAtom(-1, 0, 0);
+    relCamApplyForceToCurrent(KEYBOARD_MOVE * chai3d::cVector3d(-1, 0, 0));
   } else if (a_key == GLFW_KEY_L) {  // move current atom right
-    moveCurrentAtom(1, 0, 0);
+    relCamApplyForceToCurrent(KEYBOARD_MOVE * chai3d::cVector3d(1, 0, 0));
   } else if (a_key == GLFW_KEY_O) {  // move current atom forward (away from camera)
-    moveCurrentAtom(0, 0, 1);
+    relCamApplyForceToCurrent(KEYBOARD_MOVE * chai3d::cVector3d(0, 0, 1));
   } else if (a_key == GLFW_KEY_P) {  // move current atom backward (toward camera)
-    moveCurrentAtom(0, 0, -1);
+    relCamApplyForceToCurrent(KEYBOARD_MOVE * chai3d::cVector3d(0, 0, -1));
   } else if (a_key == GLFW_KEY_C) {  // save atoms to con file
     std::lock_guard<std::recursive_mutex> lock(sceneMutex);
     ofstream writeFile;
@@ -331,74 +409,87 @@ void keyCallback(GLFWwindow *a_window, int a_key, int a_scancode, int a_action,
     showDebug = !showDebug;
   } else if (a_key == GLFW_KEY_T) {
     std::lock_guard<std::recursive_mutex> lock(sceneMutex);
-    for (int i = 0; i < spheres.size(); i++) {
-      spheres[i]->setLocalPos(initialPositions[i]);
-      spheres[i]->setVelocity(0);
+    for (int i = 0; i < atoms.size(); i++) {
+      atoms[i]->setLocalPos(initialPositions[i]);
+      atoms[i]->setVelocity(0);
     }
   } else if (a_key == GLFW_KEY_F1) {
     if (!transparentAtoms) {
-      for (int i = 0; i < spheres.size(); i++) {
-        spheres[i]->setTransparencyLevel(0.0);
+      for (int i = 0; i < atoms.size(); i++) {
+        atoms[i]->setTransparencyLevel(0.0);
       }
     } else {
-      for (int i = 0; i < spheres.size(); i++) {
-        spheres[i]->setTransparencyLevel(1.0);
+      for (int i = 0; i < atoms.size(); i++) {
+        atoms[i]->setTransparencyLevel(1.0);
       }
     }
     transparentAtoms = !transparentAtoms;
   }
 }
 
+/**
+ * @brief A callback that handles mouse motion
+ * @param a_window the window to handle mouse motion in
+ * @param a_posX the x-pos of the mouse
+ * @param a_posY the y-pos of the mouse
+ */
 void mouseMotionCallback(GLFWwindow *a_window, double a_posX, double a_posY) {
-    std::lock_guard<std::recursive_mutex> lock(sceneMutex);
-    if (mouseState == MOUSE_BOX_SELECTION) {
-        double posX = a_posX, posY = a_posY;
-        scaleCursorToPixels(posX, posY);
-        selectionCurrentX = posX;
-        selectionCurrentY = height - posY;
-        updateSelectionBoxLines();
-        setSelectionBoxVisible(true);
-    } else if ((selectedAtom != NULL) && (mouseState == MOUSE_SELECTION) &&
-        (selectedAtom->isAnchor())) {
-        // get the vector that goes from the camera to the selected point (mouse
-        // click)
-        cVector3d vCameraObject = selectedPoint - camera->getLocalPos();
+  std::lock_guard<std::recursive_mutex> lock(sceneMutex);
+  if (mouseState == MOUSE_BOX_SELECTION) {
+    double posX = a_posX, posY = a_posY;
+    scaleCursorToPixels(a_window, posX, posY);
+    selectionCurrentX = posX;
+    selectionCurrentY = height - posY;
+    updateSelectionBoxLines();
+    setSelectionBoxVisible(true);
+  } else if ((selectedAtom != nullptr) && (mouseState == MOUSE_SELECTION) &&
+      (selectedAtom->isAnchor())) {
+    // get the vector that goes from the camera to the selected point (mouse
+    // click)
+    cVector3d vCameraObject = selectedPoint - camera->getLocalPos();
 
-        // get the vector that point in the direction of the camera. ("where the
-        // camera is looking at")
-        cVector3d vCameraLookAt = camera->getLookVector();
+    // get the vector that point in the direction of the camera. ("where the
+    // camera is looking at")
+    cVector3d vCameraLookAt = camera->getLookVector();
 
-        // compute the angle between both vectors
-        double angle = cAngle(vCameraObject, vCameraLookAt);
+    // compute the angle between both vectors
+    double angle = cAngle(vCameraObject, vCameraLookAt);
 
-        // compute the distance between the camera and the plane that intersects the
-        // object and which is parallel to the camera plane
-        double distanceToObjectPlane = vCameraObject.length() * cos(angle);
+    // compute the distance between the camera and the plane that intersects the
+    // object and which is parallel to the camera plane
+    double distanceToObjectPlane = vCameraObject.length() * cos(angle);
 
-        // cursor is in window points; scale to framebuffer pixels to match width/height
-        double posX = a_posX, posY = a_posY;
-        scaleCursorToPixels(posX, posY);
+    // cursor is in window points; scale to framebuffer pixels to match width/height
+    double posX = a_posX, posY = a_posY;
+    scaleCursorToPixels(a_window, posX, posY);
 
-        // convert the pixel in mouse space into a relative position in the world
-        double factor = (distanceToObjectPlane * tan(0.5 *
-                        camera->getFieldViewAngleRad())) / (0.5 * height);
-        double posRelX = factor * (posX - (0.5 * width));
-        double posRelY = factor * ((height - posY) - (0.5 * height));
+    // convert the pixel in mouse space into a relative position in the world
+    double factor = (distanceToObjectPlane * tan(0.5 * camera->getFieldViewAngleRad()));
+    factor /= 0.5 * height;
+    double posRelX = factor * (posX - (0.5 * width));
+    double posRelY = factor * ((height - posY) - (0.5 * height));
 
-        // compute the new position in world coordinates
-        cVector3d pos = camera->getLocalPos() +
-        distanceToObjectPlane * camera->getLookVector() +
-        posRelX * camera->getRightVector() +
-        posRelY * camera->getUpVector();
+    // compute the new position in world coordinates
+    cVector3d pos = camera->getLocalPos() +
+    distanceToObjectPlane * camera->getLookVector() +
+    posRelX * camera->getRightVector() +
+    posRelY * camera->getUpVector();
 
-        // compute position of object by taking in account offset
-        cVector3d posObject = pos - selectedAtomOffset;
+    // compute position of object by taking in account offset
+    cVector3d posObject = pos - selectedAtomOffset;
 
-        // apply new position to object
-        selectedAtom->setLocalPos(posObject);
-    }
+    // apply new position to object
+    selectedAtom->setLocalPos(posObject);
+  }
 }
 
+/**
+ * @brief A callback that handles all mouse button input
+ * @param a_window the window being clicked in
+ * @param a_button what mouse button is being pressed
+ * @param a_action what is being done with the mouse button
+ * @param a_mods any modifications being applied to the mouse
+ */
 void mouseButtonCallback(GLFWwindow *a_window, int a_button, int a_action,
                          int a_mods) {
     std::lock_guard<std::recursive_mutex> lock(sceneMutex);
@@ -409,8 +500,8 @@ void mouseButtonCallback(GLFWwindow *a_window, int a_button, int a_action,
     cCollisionRecorder recorder;
     cCollisionSettings settings;
     if (a_button == GLFW_MOUSE_BUTTON_LEFT && a_action == GLFW_PRESS) {
-        glfwGetCursorPos(window, &x, &y);
-        scaleCursorToPixels(x, y); // window points -> framebuffer pixels
+        glfwGetCursorPos(a_window, &x, &y);
+        scaleCursorToPixels(a_window, x, y); // window points -> framebuffer pixels
         bool hit =
         camera->selectWorld(x, (height - y), width, height, recorder, settings);
         if (hit) {
@@ -426,7 +517,7 @@ void mouseButtonCallback(GLFWwindow *a_window, int a_button, int a_action,
             recorder.m_nearestCollision.m_globalPos - selectedAtom->getLocalPos();
             mouseState = MOUSE_SELECTION;
         } else {
-            selectedAtom = NULL;
+            selectedAtom = nullptr;
             selectionStartX = x;
             selectionStartY = height - y;
             selectionCurrentX = selectionStartX;
@@ -436,8 +527,8 @@ void mouseButtonCallback(GLFWwindow *a_window, int a_button, int a_action,
             mouseState = MOUSE_BOX_SELECTION;
         }
     } else if (a_button == GLFW_MOUSE_BUTTON_RIGHT && a_action == GLFW_PRESS) {
-        glfwGetCursorPos(window, &x, &y);
-        scaleCursorToPixels(x, y); // window points -> framebuffer pixels
+        glfwGetCursorPos(a_window, &x, &y);
+        scaleCursorToPixels(a_window, x, y); // window points -> framebuffer pixels
         bool hit =
         camera->selectWorld(x, (height - y), width, height, recorder, settings);
         if (hit) {
@@ -455,8 +546,8 @@ void mouseButtonCallback(GLFWwindow *a_window, int a_button, int a_action,
         }
     } else if (a_button == GLFW_MOUSE_BUTTON_LEFT && a_action == GLFW_RELEASE &&
                mouseState == MOUSE_BOX_SELECTION) {
-        glfwGetCursorPos(window, &x, &y);
-        scaleCursorToPixels(x, y);
+        glfwGetCursorPos(a_window, &x, &y);
+        scaleCursorToPixels(a_window, x, y);
         selectionCurrentX = x;
         selectionCurrentY = height - y;
         selectAtomsInBox();
@@ -470,18 +561,18 @@ void mouseButtonCallback(GLFWwindow *a_window, int a_button, int a_action,
 
 void anchorAllAtoms() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
-  for (auto i{0}; i < spheres.size(); i++) {
-    if (!spheres[i]->isAnchor() && !(spheres[i]->isCurrent())) {
-      spheres[i]->setAnchor(true);
+  for (auto i{0}; i < atoms.size(); i++) {
+    if (!atoms[i]->isAnchor() && !(atoms[i]->isCurrent())) {
+      atoms[i]->setAnchor(true);
     }
   }
 }
 
 void unanchorAllAtoms() {
   std::lock_guard<std::recursive_mutex> lock(sceneMutex);
-  for (auto i{0}; i < spheres.size(); i++) {
-    if (spheres[i]->isAnchor()) {
-      spheres[i]->setAnchor(false);
+  for (auto i{0}; i < atoms.size(); i++) {
+    if (atoms[i]->isAnchor()) {
+      atoms[i]->setAnchor(false);
     }
   }
 }

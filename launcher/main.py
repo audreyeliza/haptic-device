@@ -14,8 +14,6 @@ Run with:  python -m launcher.main
 # cd .../chai3d/haptic-device
 # python -m launcher.main
 
-# SKYLAR HERE ARE ALL THE IMPORTS --------------------------
-
 
 """
 import sys
@@ -61,6 +59,7 @@ from pathlib import Path
 
 
 
+import os
 import sys
 
 from PySide6.QtCore import QProcess, QProcessEnvironment, QTimer, Qt
@@ -91,16 +90,13 @@ from launcher.ipc_client import IpcClient
 from launcher.paths import default_binary_path
 
 IPC_CONNECT_RETRY_MS = 400
-IPC_CONNECT_MAX_ATTEMPTS = 25  # ~10 seconds before giving up
 STATUS_POLL_MS = 500
 
 # must match MIN/MAX_SIMULATION_TIME_STEP in globals.h
-MIN_TIME_STEP_S = 1.0
-MAX_TIME_STEP_S = 30.0
+MIN_TIME_STEP_S = 0.0
+MAX_TIME_STEP_S = 2.0
 
 # must match the MIN_/MAX_ bounds for these in globals.h
-MIN_SETTLING_ERROR = 0.001
-MAX_SETTLING_ERROR = 1.0
 MIN_K_RETURN = 0.0
 MAX_K_RETURN = 500.0
 MIN_K_DAMPEN = 0.0
@@ -112,6 +108,8 @@ MAX_RETURN_DELAY_S = 30.0
 MIN_FORCE_SCALE = 0.0
 MAX_FORCE_SCALE = 1.0
 
+MIN_MAX_FORCE_OUTPUT = 0.0
+MAX_MAX_FORCE_OUTPUT = 10.0
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -131,7 +129,6 @@ class MainWindow(QMainWindow):
         self.ipc.statusReceived.connect(self._on_status)
         self.ipc.commandFailed.connect(self._on_command_failed)
 
-        self._connect_attempts = 0
         self._connect_timer = QTimer(self)
         self._connect_timer.setInterval(IPC_CONNECT_RETRY_MS)
         self._connect_timer.timeout.connect(self._try_connect_ipc)
@@ -198,7 +195,7 @@ class MainWindow(QMainWindow):
         file_row = QHBoxLayout()
         self.structure_file_edit = QLineEdit()
         self.structure_file_edit.setPlaceholderText(
-            "e.g. example.con, POSCAR, or structure.xyz (see ../bin/resources/data)"
+            "e.g. example.con, example.poscar, POSCAR, or structure.xyz (see ../bin/resources/data)"
         )
         browse_structure = QPushButton("Browse...")
         browse_structure.clicked.connect(self._browse_structure_file)
@@ -279,11 +276,12 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(2000)
+        self.log_view.setMinimumHeight(250)
         layout.addWidget(self.log_view)
         return group
 
     def _build_live_group(self) -> QGroupBox:
-        group = QGroupBox("Live controls (while running)")
+        group = QGroupBox("Live controls")
         self.live_group = group
         layout = QVBoxLayout(group)
         layout.setSpacing(10)
@@ -322,7 +320,58 @@ class MainWindow(QMainWindow):
         row2.addWidget(apply_potential)
         layout.addLayout(row2)
 
-        row3 = QHBoxLayout()
+        # Repeat section
+        repeat_group = QGroupBox("Repeat")
+        repeat_layout = QHBoxLayout(repeat_group)
+        repeat_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.repeat_x = QDoubleSpinBox()
+        self.repeat_x.setDecimals(0)
+        self.repeat_x.setMinimum(1)
+        self.repeat_x.setSingleStep(1)
+        self.repeat_x.setValue(1.0)
+        self.repeat_x.setToolTip(
+            "How many times the cell repeats on the x-axis"
+        )
+
+        self.repeat_y = QDoubleSpinBox()
+        self.repeat_y.setDecimals(0)
+        self.repeat_y.setMinimum(1)
+        self.repeat_y.setSingleStep(1)
+        self.repeat_y.setValue(1.0)
+        self.repeat_y.setToolTip(
+            "How many times the cell repeats on the y-axis"
+        )
+
+        self.repeat_z = QDoubleSpinBox()
+        self.repeat_z.setDecimals(0)
+        self.repeat_z.setMinimum(1)
+        self.repeat_z.setSingleStep(1)
+        self.repeat_z.setValue(1.0)
+        self.repeat_z.setToolTip(
+            "How many times the cell repeats on the z-axis"
+        )
+
+        repeat_layout.addWidget(QLabel("X:"))
+        repeat_layout.addWidget(self.repeat_x)
+        repeat_layout.addWidget(QLabel("Y:"))
+        repeat_layout.addWidget(self.repeat_y)
+        repeat_layout.addWidget(QLabel("Z:"))
+        repeat_layout.addWidget(self.repeat_z)
+
+        self.repeat_x.valueChanged.connect(
+            lambda value: self.ipc.send(f"set repeat_x {self.repeat_x.value():.2f}")
+        )
+        self.repeat_y.valueChanged.connect(
+            lambda value: self.ipc.send(f"set repeat_y {self.repeat_y.value():.2f}")
+        )
+        self.repeat_z.valueChanged.connect(
+            lambda value: self.ipc.send(f"set repeat_z {self.repeat_z.value():.2f}")
+        )
+
+        layout.addWidget(repeat_group)
+
+        row4 = QHBoxLayout()
         anchor_all = QPushButton("Anchor all")
         anchor_all.clicked.connect(lambda: self.ipc.send("anchor_all"))
         unanchor_all = QPushButton("Unanchor all")
@@ -332,8 +381,8 @@ class MainWindow(QMainWindow):
         next_camera = QPushButton("Next camera")
         next_camera.clicked.connect(lambda: self.ipc.send("next_camera"))
         for button in (anchor_all, unanchor_all, next_atom, next_camera):
-            row3.addWidget(button)
-        layout.addLayout(row3)
+            row4.addWidget(button)
+        layout.addLayout(row4)
 
         return group
 
@@ -357,7 +406,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.render_forces_checkbox)
 
         self.render_bonds_checkbox = QCheckBox("Bonds")
-        self.render_bonds_checkbox.setChecked(True)
+        self.render_bonds_checkbox.setChecked(False)
         self.render_bonds_checkbox.toggled.connect(
             lambda checked: self.ipc.send(f"set render_bonds {'true' if checked else 'false'}")
         )
@@ -376,17 +425,19 @@ class MainWindow(QMainWindow):
         self.force_scale_spin.setSingleStep(0.05)
         self.force_scale_spin.setValue(1.0)
         self.force_scale_spin.setToolTip(
-            "Scales all force feedback sent to the device. Turn down while "
-            "running if an old/worn device is feeling too strong."
+            "Ratio for how many Newtons 1 eV per Å renders as."
         )
-        form.addRow("Feedback intensity:", self.force_scale_spin)
+        form.addRow("Force rendering ratio (N : ev/Å):", self.force_scale_spin)
 
-        self.settling_err_spin = QDoubleSpinBox()
-        self.settling_err_spin.setDecimals(4)
-        self.settling_err_spin.setRange(MIN_SETTLING_ERROR, MAX_SETTLING_ERROR)
-        self.settling_err_spin.setSingleStep(0.001)
-        self.settling_err_spin.setValue(0.05)
-        form.addRow("Settling error:", self.settling_err_spin)
+        self.max_force_output = QDoubleSpinBox()
+        self.max_force_output.setDecimals(2)
+        self.max_force_output.setRange(MIN_MAX_FORCE_OUTPUT, MAX_MAX_FORCE_OUTPUT)
+        self.max_force_output.setSingleStep(0.05)
+        self.max_force_output.setValue(8.9)
+        self.max_force_output.setToolTip(
+            "Maximum amount of force the device will render in Newtons."
+        )
+        form.addRow("Max force render (N)", self.max_force_output)
 
         self.k_return_spin = QDoubleSpinBox()
         self.k_return_spin.setDecimals(2)
@@ -418,7 +469,7 @@ class MainWindow(QMainWindow):
 
     def _apply_haptic_tuning(self):
         self.ipc.send(f"set force_scale {self.force_scale_spin.value():.2f}")
-        self.ipc.send(f"set settling_err {self.settling_err_spin.value():.4f}")
+        self.ipc.send(f"set max_force {self.max_force_output.value():.2f}")
         self.ipc.send(f"set k_return {self.k_return_spin.value():.2f}")
         self.ipc.send(f"set k_dampen {self.k_dampen_spin.value():.2f}")
         self.ipc.send(f"set return_delay {self.return_delay_spin.value():.2f}")
@@ -487,6 +538,16 @@ class MainWindow(QMainWindow):
         env.insert("HAPTIC_DEVICE_CMD_PORT", str(self.port_spin.value()))
         env.insert("HAPTIC_DEVICE_TIME_STEP", f"{self.time_step_spin.value():.4f}")
         env.insert("HAPTIC_DEVICE_FORCE_SCALE", f"{intensity:.2f}")
+        if os.path.exists("/dev/dxg"):
+            # /dev/dxg is WSL's GPU passthrough device node. Without forcing
+            # the d3d12 gallium driver, Mesa falls back to the llvmpipe
+            # software rasterizer, which turns camera->renderView() into the
+            # dominant per-frame cost (tens of ms for a simple scene).
+            # d3d12's default adapter pick isn't necessarily the discrete
+            # GPU (it picked the Intel iGPU here) -- steer it at the NVIDIA
+            # adapter explicitly.
+            env.insert("GALLIUM_DRIVER", "d3d12")
+            env.insert("MESA_D3D12_DEFAULT_ADAPTER_NAME", "NVIDIA")
         self.process.setProcessEnvironment(env)
 
         self.force_scale_spin.blockSignals(True)
@@ -498,8 +559,8 @@ class MainWindow(QMainWindow):
         self.process.start()
         self._set_running_state(True)
 
-        self._connect_attempts = 0
         self._connect_timer.start()
+        self.status_label.setText("Waiting for live-control port (loading calculator...)")
 
     def _stop(self):
         self._connect_timer.stop()
@@ -537,6 +598,9 @@ class MainWindow(QMainWindow):
         self._status_timer.stop()
         self.ipc.disconnect_from_host()
         self._set_running_state(False)
+        self.repeat_x.setValue(1)
+        self.repeat_y.setValue(1)
+        self.repeat_z.setValue(1)
 
     def _on_process_error(self, error):
         self.log_view.appendPlainText(f"[process error: {self.process.errorString()}]")
@@ -548,12 +612,8 @@ class MainWindow(QMainWindow):
         if self.ipc.is_connected():
             self._connect_timer.stop()
             return
-        self._connect_attempts += 1
-        if self._connect_attempts > IPC_CONNECT_MAX_ATTEMPTS:
-            self._connect_timer.stop()
-            self.status_label.setText(
-                "Could not reach the live-control port; live controls disabled for this run."
-            )
+        if self.process.state() == QProcess.ProcessState.NotRunning:
+            self._connect_timer.stop()   # process died; nothing to connect to
             return
         self.ipc.connect_to("127.0.0.1", self.port_spin.value())
 
@@ -596,7 +656,6 @@ class MainWindow(QMainWindow):
         # don't fight the user while they're actively editing one of these
         for spin, key in (
             (self.force_scale_spin, "force_scale"),
-            (self.settling_err_spin, "settling_err"),
             (self.k_return_spin, "k_return"),
             (self.k_dampen_spin, "k_dampen"),
             (self.return_delay_spin, "return_delay"),

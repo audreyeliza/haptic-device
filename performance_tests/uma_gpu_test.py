@@ -28,5 +28,5 @@ while time.time() < end_time:
     frames += 1
 print("Done!")
 print("Average GPU Usage:", np.array(gpu_usage).mean())
-print("Refresh Rate:", frames / 300)
+print("Refresh Rate:", frames / duration)
 view(zeolite)
