@@ -1,7 +1,14 @@
 # haptic-device
-Code for the FRI haptic device project
 
-**NOTE:** When launching the program, you may need to calibrate the device by pushing it in and out until it is recognized.
+CHAI3D simulation and Arduino/SimpleFOC firmware for the lab's custom-built
+1-DOF capstan-drive molecular force feedback haptic device (see
+`customHapticDevice.h`/`.cpp` and `firmware/haptic_motor_controller`).
+
+**NOTE:** the device zeros its position reference to wherever the shaft
+happens to be when calibration finishes, a few seconds after the serial
+port opens while the Arduino reboots and reruns its self-driven FOC
+calibration (see `CustomHapticDevice::calibrate`) — start with the handle
+at your intended home/center position before launching.
 
 For hardware assembly/wiring, see [docs/HARDWARE.md](docs/HARDWARE.md); for
 Windows/WSL setup, see [docs/WSL_SETUP.md](docs/WSL_SETUP.md); for project
@@ -14,6 +21,16 @@ configuring parameters and launching `haptic-device`, plus a "Live controls"
 panel (freeze, haptic mode, potential, anchors) that talks to a loopback IPC
 server built into `LJ.cpp` while the simulation is running. See
 [launcher/README.md](launcher/README.md) for setup and usage.
+
+**Note:** the launcher doesn't have a field for the serial port and doesn't
+set `HAPTIC_DEVICE_SERIAL_PORT` itself, so launching the physical device
+through it is untested. It should still work, though: the launcher builds
+its subprocess environment from `QProcessEnvironment.systemEnvironment()`
+(i.e. it inherits your shell's environment rather than replacing it), so
+`export HAPTIC_DEVICE_SERIAL_PORT=/dev/cu.usbmodem####` before running
+`python -m launcher.main` should reach the simulation the same way it does
+from the command line. Everything else (mode/atom/potential args, live IPC
+controls) is independent of the device and unaffected.
 
 ## OPTIONS
 
@@ -95,12 +112,13 @@ WSL/Linux or macOS — see below).
 6. The binary will be written to `bin/win-x64/haptic-device.exe` (or
    `bin/win-Win32` for a 32-bit build)
 
-Force Dimension/Novint Falcon (DHD) support isn't compiled in on Windows —
-upstream CHAI3D only links it on macOS/Linux/QNX — so a native Windows build
-always runs in keyboard/mouse-only mode. If you need the physical haptic
-device on a Windows box, build and run through WSL instead — see
-[docs/WSL_SETUP.md](docs/WSL_SETUP.md) for the full walkthrough, including
-USB passthrough and the no-admin-access fallback.
+The custom device's serial I/O (`hapticDeviceSerial.cpp`) is termios-based
+and POSIX-only, so `customHapticDevice.cpp`/`hapticDeviceSerial.cpp` are
+excluded from native Windows builds entirely (see `CMakeLists.txt`) — a
+native Windows build always runs in keyboard/mouse-only mode. If you need
+the physical device on a Windows box, build and run through WSL instead —
+see [docs/WSL_SETUP.md](docs/WSL_SETUP.md) for the full walkthrough,
+including USB passthrough and the no-admin-access fallback.
 
 ### Linux / macOS
 
@@ -142,12 +160,6 @@ the CMake build existed — ignore it).
    the equivalent macOS output directory. The diagnostic tools
    (`chai3d_device_test`, `chai3d_visualizer`) build to the haptic-device
    repo root instead.
-7. (Linux only, for Force Dimension/Novint Falcon support) from the CHAI3D
-   root:
-   ```
-   sudo cp ./externals/DHD/doc/linux/51-forcedimension.rules /etc/udev/rules.d
-   sudo udevadm control --reload-rules && udevadm trigger
-   ```
 
 At this point the software runs with mouse and keyboard. To run it with the
 physical 1-DOF device, plug it in and confirm the serial device shows up:
@@ -177,17 +189,12 @@ The textbook is too big to upload so here's the link: http://www.charleshouserjr
 ## Notes
 
 ### Controls
-* The buttons are labeled 0-3, starting at the center and going clockwise for user switches
-* Button naming convention in LJ-test.cpp (example = name in LJ-test.cp
-* p)
-    * button 0 = button
-        * turns off forces while pressed
-    * button 1 = button2
-        * this button changes the current atom being used
-    * button3 = freebutton
-        * also does nothing
-    * button2  = button3
-        * this changes the camera position
+
+The custom device has no buttons or user switches — the firmware/protocol
+only carries shaft angle/velocity and commanded torque (see
+`firmware/haptic_motor_controller/protocol.h`). All interaction beyond the
+haptic shaft itself is keyboard-driven:
+
 * Keyboard hotkeys:
     * `q` or `ESC`
         * quit program
