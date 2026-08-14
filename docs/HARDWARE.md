@@ -76,6 +76,6 @@ pins.
 
 [Printables — 4040 T-Nuts M3](https://www.printables.com/model/698409-4040-t-nuts-m3/comments)
 
-## Pictures
+## Demo Videos
 
-*(Add photos of the assembled device, wiring, and CAD renders here.)*
+[YouTube playlist](https://www.youtube.com/playlist?list=PLWunosoP1iG4)
