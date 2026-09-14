@@ -94,18 +94,28 @@ WSL/Linux or macOS — see below).
 1. Install a Python 3 build from [python.org](https://www.python.org/downloads/)
    (it bundles the dev headers/import library CMake's `find_package(Python3)`
    needs — the Microsoft Store build does not).
-2. Download or clone a CHAI3D tree and build it first
+2. Clone and build CHAI3D (run from wherever you want the project folder
+   created):
    ```
+   git clone https://github.com/chai3d/chai3d.git
+   cd chai3d
    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build --config Release
    ```
-3. Clone this repo into the CHAI3D directory so it sits next to `src`,
-   `examples`, and `build`
-4. Create the directory `data` in `bin/resources` and move the file
-   `global_minima.txt` there
-5. Build `haptic-device` itself
+3. Clone this repo so it sits next to `src`, `examples`, and `build`:
    ```
+   git clone https://github.com/audreyeliza/haptic-device.git
    cd haptic-device
+   ```
+4. `global_minima.txt` starts out at the root of this repo (you're already
+   in `haptic-device` from the `cd` above). Move it into a new
+   `bin\resources\data` folder under the CHAI3D checkout:
+   ```
+   mkdir ..\bin\resources\data
+   move global_minima.txt ..\bin\resources\data\
+   ```
+5. Build `haptic-device` itself:
+   ```
    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build --config Release
    ```
@@ -137,49 +147,145 @@ the CMake build existed — ignore it).
    CMake; see CHAI3D's own `doc/getting-started.html` for any other
    platform prerequisites.
 
-2. Download or clone a CHAI3D tree and build it first:
+2. Clone and build CHAI3D (run from wherever you want the project folder
+   created):
    ```
+   git clone https://github.com/chai3d/chai3d.git
+   cd chai3d
    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
    cmake --build build -j"$(nproc)"   # macOS: -j$(sysctl -n hw.ncpu)
    ```
    Newer CMake (4.x) rejects CHAI3D's old minimum-version line — if you hit
    `Compatibility with CMake < 3.5 has been removed`, add
-   `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` to the command above.
-3. Clone this repo into the CHAI3D directory so it sits next to `src`,
-   `examples`, and `build`.
-4. Create the directory `data` in `bin/resources` and move the file
-   `global_minima.txt` there (it's a move, so it only exists in the new
-   location afterward).
-5. Build haptic-device itself:
+   `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` to the `cmake -S . -B build` command
+   above, so it reads:
    ```
-   cd haptic-device
-   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-   cmake --build build -j"$(nproc)"
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
    ```
-6. The main binary is written to `bin/lin-x86_64/haptic-device` (Linux) or
-   the equivalent macOS output directory. The diagnostic tools
-   (`chai3d_device_test`, `chai3d_visualizer`) build to the haptic-device
-   repo root instead.
 
-At this point the software runs with mouse and keyboard. To run it with the
-physical 1-DOF device, plug it in and confirm the serial device shows up:
+   If the build fails partway through, rerun it single-threaded and capture
+   the log so the actual error isn't buried in interleaved parallel output:
+   ```
+   cmake --build build -j1 2>&1 | tee build.log
+   ```
+   See **macOS Build Troubleshooting** below for two specific errors that
+   show up building CHAI3D's bundled `libpng`/`zlib` on recent macOS/Xcode.
+3. Clone this repo so it sits next to `src`, `examples`, and `build`:
+   ```
+   git clone https://github.com/audreyeliza/haptic-device.git
+   cd haptic-device
+   ```
+4. `global_minima.txt` starts out at the root of this repo (you're already
+   in `haptic-device/` from the `cd` above). Move it into CHAI3D's
+   `bin/resources/data/` — that directory doesn't exist by default, so
+   create it first:
+   ```
+   mkdir -p ../bin/resources/data
+   mv global_minima.txt ../bin/resources/data/
+   ```
+   This is a move, not a copy: afterward `global_minima.txt` exists only
+   in `bin/resources/data/`, not at the repo root anymore. Any `.con`
+   files you save from the simulation later go in this same folder. After
+   this step the layout looks like:
+   ```
+   chai3d/                              <- CHAI3D checkout (step 2)
+   ├── src/, examples/, build/          <- CHAI3D's own sources/build
+   ├── bin/
+   │   └── resources/
+   │       └── data/
+   │           ├── global_minima.txt    <- moved here in this step
+   │           ├── lj_linear_demo.con   <- any saved/example .con files go here too
+   │           └── morse_linear_demo.con
+   └── haptic-device/                   <- this repo (step 3), sits beside src/examples/build
+       ├── README.md
+       ├── CMakeLists.txt
+       └── build/                       <- haptic-device's own build dir (step 5)
+   ```
+5. Build haptic-device itself (you're still in `haptic-device/`):
+   ```
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+   cmake --build build -j"$(nproc)"   # macOS: -j$(sysctl -n hw.ncpu)
+   ```
+   Configuring here typically prints several `CMake Warning (author)` /
+   `CMake Warning (policy)` blocks (deprecated syntax in CHAI3D's own
+   `.cmake` files, `CMP0144`, etc.) — these come from CHAI3D's build
+   scripts, not this repo, and are safe to ignore as long as the run ends
+   with `-- Configuring done` / `-- Generating done`.
+6. The main `haptic-device` binary is written to a platform-specific
+   subfolder *of the `chai3d/` checkout* (not this repo):
+   `bin/lin-x86_64/haptic-device` on Linux,
+   `bin/mac-arm64/haptic-device` on Apple Silicon Macs, or
+   `bin/mac-x86_64/haptic-device` on Intel Macs. The diagnostic tools
+   (`chai3d_device_test`, `chai3d_visualizer`) build to the `haptic-device`
+   repo root instead — a different folder from the main binary, so don't
+   expect to run both from the same working directory.
+
+At this point the software runs with mouse and keyboard. The commands
+below assume you're still in `haptic-device/` (from step 3). To run it
+with the physical 1-DOF device, plug it in and confirm the serial device
+shows up:
 ```
 ls /dev/cu.usbmodem*        # Mac
 ls /dev/ttyACM*             # Linux
 ```
-Sanity-check the serial link with the diagnostic visualizer first — move
-the shaft and confirm the on-screen numbers change in real time:
+This prints the exact device path for your machine, e.g.
+`/dev/cu.usbmodem1101` — copy that exact string and use it in place of
+`/dev/cu.usbmodem####` in the two commands below (every machine's is
+different, so this one substitution can't be avoided).
+
+Sanity-check the serial link with the diagnostic visualizer first — it
+builds to this same `haptic-device/` folder, so no `cd` needed. Move the
+shaft and confirm the on-screen numbers change in real time:
 ```
 ./chai3d_visualizer /dev/cu.usbmodem####
 ```
-Then launch the full simulation with the port set via env var:
+Then move into the platform folder from step 6 (Apple Silicon Mac shown —
+swap in your own platform's folder name if different) and launch the full
+simulation with the port set via env var:
 ```
+cd ../bin/mac-arm64
 export HAPTIC_DEVICE_SERIAL_PORT=/dev/cu.usbmodem####
 ./haptic-device force
 ```
 
 For hardware assembly, wiring, and CAD references, see
 [docs/HARDWARE.md](docs/HARDWARE.md).
+
+#### macOS Build Troubleshooting
+
+Both of these come from CHAI3D's bundled third-party `libpng`/`zlib` code
+(step 2 above, building CHAI3D itself) making assumptions that don't hold
+on a recent macOS SDK/Xcode toolchain — not from anything in this repo.
+The files below are inside your CHAI3D checkout, which is a plain git
+clone, so `git checkout -- <file>` cleanly reverts either edit if you ever
+need to.
+
+* **`fp.h` file not found**, while compiling
+  `externals/libpng/include/pngpriv.h`. Older `libpng` code prefers a
+  legacy `<fp.h>` header that current macOS SDKs don't ship; repoint it at
+  `math.h`, which is already CHAI3D's own fallback on other platforms:
+  ```
+  sed -i '' -E 's/#[[:space:]]*include[[:space:]]*<fp\.h>/#include <math.h>/' externals/libpng/include/pngpriv.h
+  ```
+
+* **`fdopen` conflicts/redefinition errors**, from
+  `externals/libpng/include/zutil.h`, which stubs the function out on some
+  platforms with `#define fdopen(fd,mode) NULL /* No fdopen() */`. Disable
+  those lines with a `//` line-comment, not a new `/* ... */` block — C
+  block comments don't nest, so wrapping a line that already contains
+  `/* No fdopen() */` in another `/* ... */` closes at the *first* `*/` it
+  finds (right after `No fdopen()`), leaving a stray `*/` in real code
+  afterward that fails to compile. A `//` comments out the entire line in
+  one pass, so the existing `/* ... */` inside it is never a problem:
+  ```
+  sed -i '' -E 's/^([[:space:]]*)#([[:space:]]*define fdopen\(fd,mode\) NULL.*)$/\1\/\/ #\2/' externals/libpng/include/zutil.h
+  ```
+  Verify with `grep -n "fdopen" externals/libpng/include/zutil.h` — the
+  three `#define fdopen(fd,mode) NULL...` lines should each now show `// #`
+  at the start, with no orphaned `*/` anywhere in the file.
+
+After either fix, rebuild single-threaded so any further errors are easy to
+read (see the `-j1 | tee build.log` tip in step 2 above).
 
 
 ## Reference
