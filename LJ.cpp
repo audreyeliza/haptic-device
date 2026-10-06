@@ -1151,6 +1151,15 @@ void initializeHapticThread() {
  */
 chai3d::cVector3d applyBoundaryConditions(chai3d::cVector3d pos, std::array<double, 9>& aseCell,
     std::array<int, 3>& asePbc) {
+  // With no periodic axis, there's nothing to wrap - skip the fractional-coordinate
+  // round trip entirely. That matters beyond just being a no-op: with no cell (the
+  // default non-ASE mode, or a plain non-periodic .xyz) aseCell is all zeros,
+  // cMatrix3d::invert() fails silently on it, and the result below degenerates to a
+  // constant offset independent of pos - snapping every atom to the same point on
+  // every step (window renders, but no atoms are visible).
+  if (!asePbc[0] && !asePbc[1] && !asePbc[2]) {
+    return pos;
+  }
   cVector3d initialCoords(centerCoords[0], centerCoords[1], centerCoords[2]);
   pos = pos / DIST_SCALE + initialCoords;
   
