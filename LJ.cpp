@@ -531,6 +531,22 @@ int runApplication(int argc, char *argv[]) {
     throw std::runtime_error("First argument must be a haptic mode: \"force\", \"position\", \"standby\"");
   }
 
+  // With only the haptic mode given, default to the walls output test (one
+  // atom, "walls" potential) instead of a 5-neighbor LJ cluster. Static so
+  // the strings outlive this function in case anything keeps argv around.
+  static char defaultAtoms[] = "0";
+  static char defaultPotential[] = "walls";
+  static char *wallsArgv[5];
+  if (argc == 2) {
+    wallsArgv[0] = argv[0];
+    wallsArgv[1] = argv[1];
+    wallsArgv[2] = defaultAtoms;
+    wallsArgv[3] = defaultPotential;
+    wallsArgv[4] = nullptr;
+    argv = wallsArgv;
+    argc = 4;
+  }
+
   // Declare variables needed for calculator constructor (cell, pbc), atoms object
   // (mass, atomic number), and placing of initial atoms (positions)
   std::array<double, 9> aseCell = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};

@@ -43,7 +43,9 @@ Specify the # of atoms at launch like so:
 ```
 ./haptic-device force 38
 ```
-If you don't pass in an atom count, the default is five.
+If you pass only the haptic mode (`./haptic-device force`), it launches the
+walls output test instead — see [Haptic output test (walls)](#haptic-output-test-walls).
+Passing an atom count without a potential still defaults to Lennard-Jones.
 
 You can also read in an existing configuration:
 ```
@@ -74,6 +76,7 @@ For any other ASE calculator, use `module:Class[:kwargs]`.
 
 `walls` replaces the chemistry with a single atom between two flat walls at
 x = ±half-width (default 5, same units as LJ sigma; optional 4th argument).
+It's also what a bare `./haptic-device force` launches.
 Pushing the handle into either wall should push back — a quick way to
 confirm the device is outputting force in the right direction:
 ```
