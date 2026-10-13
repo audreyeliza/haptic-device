@@ -70,6 +70,17 @@ Supported ASE shortcuts are `lj`, `morse`, `emt`, and `uma` (Meta's universal
 ML potential; `uma:omol`, `uma:omat`, `uma:oc20` select the prediction head).
 For any other ASE calculator, use `module:Class[:kwargs]`.
 
+### Haptic output test (walls)
+
+`walls` replaces the chemistry with a single atom between two flat walls at
+x = ±half-width (default 5, same units as LJ sigma; optional 4th argument).
+Pushing the handle into either wall should push back — a quick way to
+confirm the device is outputting force in the right direction:
+```
+./haptic-device force 0 walls
+./haptic-device force 0 walls 3
+```
+
 A fifth argument controls periodic boundary conditions: `on` forces PBC on,
 `off` forces it off, and `keep` (or omitting the argument) leaves whatever
 the loaded structure file specified untouched:

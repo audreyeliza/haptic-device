@@ -1003,6 +1003,27 @@ vector<vector<double>> ljCalculator::getFandU(vector<Atom *> &spheres)
     return returnVector;
 }
 
+vector<vector<double>> wallCalculator::getFandU(vector<Atom *> &spheres)
+{
+    vector<vector<double>> returnVector;
+    double potentialEnergy = 0;
+    for (int i = 0; i < spheres.size(); i++)
+    {
+        double x = spheres[i]->getLocalPos().x() / distanceScale;
+        double penetration = 0;
+        if (x > halfWidth) {
+            penetration = x - halfWidth;
+        } else if (x < -halfWidth) {
+            penetration = x + halfWidth;
+        }
+        potentialEnergy += 0.5 * stiffness * penetration * penetration;
+        returnVector.push_back({-stiffness * penetration, 0.0, 0.0});
+    }
+    returnVector.push_back({potentialEnergy});
+
+    return returnVector;
+}
+
 // U(r) = 4*epsilon * [(sigma/r)^12 - (sigma/r)^6]
 double ljCalculator::getLennardJonesEnergy(double distance)
 {

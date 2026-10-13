@@ -1128,6 +1128,18 @@ void initializeAtomPosition(Atom *new_atom) {
   // cout << "Placing atom at " << new_atom->getLocalPos() << endl;
 }
 
+// draw the two "walls" potential's walls as thin translucent panels at
+// x = +/-halfWidthWorld (world units), spanning y/z
+void initializeWalls(double halfWidthWorld) {
+  for (int side = -1; side <= 1; side += 2) {
+    cShapeBox *wall = new cShapeBox(0.002, 0.3, 0.3);
+    wall->setLocalPos(side * halfWidthWorld, 0.0, 0.0);
+    wall->m_material->setRedCrimson();
+    wall->setTransparencyLevel(0.4);
+    world->addChild(wall);
+  }
+}
+
 void initializeCalculator(int argc, char *argv[], std::array<double, 9> aseCell,
     std::array<int, 3> asePbc) {
     if (argc < 4) {
@@ -1147,6 +1159,15 @@ void initializeCalculator(int argc, char *argv[], std::array<double, 9> aseCell,
       calculatorPtr = new aseCalculator((argc > 4) ? argv[4] : "", aseCell, asePbc);
     } else if (potential == "lennard-jones" || potential == "lj") {
       calculatorPtr = new ljCalculator();
+    } else if (potential == "walls" || potential == "w") {
+      // optional argv[4]: wall half-width, same reduced units as LJ sigma
+      double halfWidth = (argc > 4) ? atof(argv[4]) : 0.0;
+      if (!(halfWidth > 0.0)) {
+        halfWidth = 5.0;
+      }
+      energySurface = WALLS;
+      calculatorPtr = new wallCalculator(halfWidth);
+      initializeWalls(halfWidth * DIST_SCALE);
     } else {
       cerr << "Warning: unknown potential '" << potential
            << "'. Defaulting to Lennard-Jones." << endl;
@@ -1329,6 +1350,8 @@ void initializePotentialLabel() {
     potentialName = "Morse Potential";
   } else if (energySurface == ASE) {
     potentialName = "ASE Potential";
+  } else if (energySurface == WALLS) {
+    potentialName = "Walls (haptic output test)";
   }
   potentialLabel->setText("Potential energy surface: " + potentialName);
 }

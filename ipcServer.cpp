@@ -79,6 +79,8 @@ string buildStatus() {
     potentialStr = "morse";
   } else if (energySurface == ASE) {
     potentialStr = "ase";
+  } else if (energySurface == WALLS) {
+    potentialStr = "walls";
   }
 
   ostringstream out;

@@ -13,7 +13,7 @@
 // STATES
 //------------------------------------------------------------------------------
 enum MouseState { MOUSE_IDLE, MOUSE_SELECTION, MOUSE_BOX_SELECTION };
-enum LocalPotential { LENNARD_JONES, MORSE, ASE };
+enum LocalPotential { LENNARD_JONES, MORSE, ASE, WALLS };
 enum class HapticMode { Position, Standby, Force };
 
 // map of atom stringnames by atomic number

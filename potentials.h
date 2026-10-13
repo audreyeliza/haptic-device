@@ -65,6 +65,24 @@ class ljCalculator:public Calculator {
     double getLennardJonesForce(double distance);
 };
 
+////// Calculator for two flat walls at x = +/-halfWidth (haptic output test)
+// No atom-atom interaction: each atom is free between the walls and pushed
+// back by a linear spring (stiffness, per unit^2) once it crosses either one.
+// Only x is constrained, matching the 1-DOF device's axis.
+class wallCalculator:public Calculator {
+  double halfWidth;
+  double stiffness;
+  double distanceScale;
+  public:
+    wallCalculator(double hw=5.0, double k=1.0, double ds=.02) {
+      halfWidth = hw;
+      stiffness = k;
+      distanceScale = ds;
+    }
+    vector<vector<double>> getFandU(vector<Atom*>& spheres);
+    double getHalfWidth() const { return halfWidth; }
+};
+
 ////// Calculator for ASE
 class aseCalculator:public Calculator {
   std::string calculatorModule;
