@@ -3,6 +3,7 @@
 // termios-based serial I/O (hapticDeviceSerial.cpp) is POSIX-only.
 #ifndef _WIN32
 
+#include <chrono>
 #include <string>
 
 #include "chai3d.h"
@@ -44,6 +45,14 @@ private:
   // continuously in the firmware (never wraps to +/-pi), so getPosition()
   // reports motion relative to this reference rather than the raw angle.
   float m_referenceAngle;
+
+  // The haptics loop can spin at hundreds of kHz over a direct USB serial
+  // link, and the firmware's pollCommands() drains Serial in a while loop -
+  // sending a CommandFrame every iteration floods it so loopFOC()/sendState()
+  // never run (no torque, frozen position). Throttle sends to the firmware's
+  // 1 kHz control rate.
+  std::chrono::steady_clock::time_point m_lastTorqueSend;
+  static constexpr std::chrono::microseconds kTorqueSendInterval{1000};
 
   // Capstan/cable calibration. metersPerRadian = drum radius (arc length
   // s = r*theta): 32mm drum diameter / 2 = 16mm = 0.016m, direct-drive on

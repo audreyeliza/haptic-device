@@ -97,6 +97,12 @@ bool CustomHapticDevice::setForceAndTorqueAndGripperForce(const cVector3d &a_for
   m_prevTorque = a_torque;
   m_prevGripperForce = a_gripperForce;
 
+  auto now = std::chrono::steady_clock::now();
+  if (now - m_lastTorqueSend < kTorqueSendInterval) {
+    return m_deviceReady;
+  }
+  m_lastTorqueSend = now;
+
   double torqueVolts = m_forcesEnabled ? (a_force.x() / newtonsPerVolt) : 0.0;
   m_serial.sendTorque(static_cast<float>(torqueVolts));
   return m_deviceReady;
