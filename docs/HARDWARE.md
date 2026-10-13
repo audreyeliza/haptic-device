@@ -3,7 +3,7 @@
 Physical build reference for the 1-DOF molecular force feedback haptic
 device: fasteners, wiring, and CAD sources. For firmware/protocol details
 see `firmware/`; for software build and running the simulation see the main
-[README.md](../README.md) and [WSL_SETUP.md](WSL_SETUP.md).
+[README.md](../README.md) (including Windows/WSL setup).
 
 ## Hex Socket Button Head Screws
 

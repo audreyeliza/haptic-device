@@ -11,7 +11,7 @@ calibration (see `CustomHapticDevice::calibrate`) — start with the handle
 at your intended home/center position before launching.
 
 For hardware assembly/wiring, see [docs/HARDWARE.md](docs/HARDWARE.md); for
-Windows/WSL setup, see [docs/WSL_SETUP.md](docs/WSL_SETUP.md); for project
+Windows/WSL setup, see [Windows/WSL Setup](#windowswsl-setup-first-time-on-a-new-machine); for project
 background and semester write-ups, see [docs/journal.md](docs/journal.md).
 
 ## Desktop Launcher
@@ -138,7 +138,7 @@ and POSIX-only, so `customHapticDevice.cpp`/`hapticDeviceSerial.cpp` are
 excluded from native Windows builds entirely (see `CMakeLists.txt`) — a
 native Windows build always runs in keyboard/mouse-only mode. If you need
 the physical device on a Windows box, build and run through WSL instead —
-see [docs/WSL_SETUP.md](docs/WSL_SETUP.md) for the full walkthrough,
+see [Windows/WSL Setup](#windowswsl-setup-first-time-on-a-new-machine) below for the full walkthrough,
 including USB passthrough and the no-admin-access fallback.
 
 ### Linux / macOS
@@ -255,7 +255,7 @@ swap in your own platform's folder name if different) and launch the full
 simulation with the port set via env var:
 ```
 cd ../bin/mac-arm64
-export HAPTIC_DEVICE_SERIAL_PORT=/cu.usbmodem####
+export HAPTIC_DEVICE_SERIAL_PORT=/dev/cu.usbmodem####
 ./haptic-device force
 ```
 
@@ -266,10 +266,10 @@ For hardware assembly, wiring, and CAD references, see
 
 This covers building and running the physical device on Windows through
 WSL2, including the fallback path for machines without admin access. For a
-native (non-WSL) Windows build, or for Linux/macOS builds, see the main
-[README.md](../README.md). For running the desktop launcher GUI (not just
+native (non-WSL) Windows build, or for Linux/macOS builds, see
+[Build Instructions](#build-instructions) above. For running the desktop launcher GUI (not just
 the raw binary) under WSL, see
-[launcher/README.md's "Running under WSL" section](../launcher/README.md#running-under-wsl).
+[launcher/README.md's "Running under WSL" section](launcher/README.md#running-under-wsl).
 
 **Note:** the repo needs to live inside a CHAI3D checkout, and CHAI3D +
 haptic-device both build via CMake.
@@ -297,7 +297,6 @@ git clone https://github.com/chai3d/chai3d.git chai3d
 cd chai3d
 git clone https://github.com/audreyeliza/haptic-device.git
 cd haptic-device
-git checkout cd10135
 ```
 
 ## 3. Install build dependencies
@@ -348,9 +347,9 @@ Output locations:
 ## Mac/Linux — Device Plugged In Directly (No Bridge Needed)
 
 ```
-ls /cu.usbmodem*        # Mac
+ls /dev/cu.usbmodem*        # Mac
 ls /ttyACM*             # Linux
-./chai3d_visualizer /cu.usbmodem####
+./chai3d_visualizer /dev/cu.usbmodem####
 ```
 
 ## Windows/WSL — Without Admin Access (usbipd-win workaround)
@@ -487,7 +486,7 @@ socat -d -d pty,raw,echo=0,link=$HOME/ttyBridge tcp:localhost:9001
 #### 3 — WSL (separate terminal): run the actual simulation
 
 ```
-cd ~/dev/chai3d
+cd ~/chai3d
 export HAPTIC_DEVICE_SERIAL_PORT=$HOME/ttyBridge
 ./bin/lin-x86_64/haptic-device force
 ```
@@ -495,8 +494,8 @@ export HAPTIC_DEVICE_SERIAL_PORT=$HOME/ttyBridge
 **Note:** `force` is a required first argument — the haptic mode (`force`,
 `position`, or `standby`). Without it, the binary throws "Missing haptic
 mode argument" and shows a black window. Every other CLI option (atom
-count, structure file, potential, ASE spec, PBC — see the main README's
-[OPTIONS](../README.md#options) section) shifts one slot later because of
+count, structure file, potential, ASE spec, PBC — see the
+[OPTIONS](#options) section) shifts one slot later because of
 this, e.g.:
 
 ```
@@ -508,7 +507,7 @@ the diagnostic tool and move the shaft — the on-screen numbers should change
 in real time:
 
 ```
-cd ~/dev/chai3d/haptic-device
+cd ~/chai3d/haptic-device
 ./chai3d_device_test $HOME/ttyBridge
 ```
 
