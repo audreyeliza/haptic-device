@@ -401,89 +401,28 @@ Find the port first, in PowerShell:
 Cross-check against Device Manager → Ports (COM & LPT) if multiple show up
 and you're not sure which one is your device.
 
-**Note:** `DtrEnable`/`RtsEnable` must be set true after `Open()`. Most
-Arduino boards hold the chip in reset until DTR is asserted, and .NET's
-`SerialPort` defaults it to false — without this, the bridge "connects" fine
-but no real data ever comes through (looks like a dead device even though it
-isn't).
-
-**Tip:** turn off Notepad's autocorrect/text suggestions before pasting the
-script below — it silently turns straight quotes into curly smart quotes,
-which breaks the PowerShell parser in confusing ways (looks like "missing
-paren" errors).
-
-Create the file, in PowerShell:
+The bridge script lives in the repo at `tools/serial-bridge.ps1` (no need to
+paste it into Notepad, which turns quotes into smart quotes and breaks the
+parser). Copy it to your Windows home folder once, from WSL:
 
 ```
-notepad serial-bridge.ps1
+cp ~/chai3d/haptic-device/tools/serial-bridge.ps1 /mnt/c/Users/<your-windows-username>/
 ```
 
-If Notepad asks to create a new file, say yes. Copy this into the file, then
-save and close (keep a copy on the lab PC, or regenerate it fresh each
-time):
-
-```powershell
-param(
-  [string]$ComPort = "COM4",
-  [int]$BaudRate = 115200,
-  [int]$ListenPort = 9001
-)
-try {
-    $serial = New-Object System.IO.Ports.SerialPort $ComPort, $BaudRate, ([System.IO.Ports.Parity]::None), 8, ([System.IO.Ports.StopBits]::One)
-    $serial.ReadTimeout = 50
-    $serial.Open()
-    $serial.DtrEnable = $true
-    $serial.RtsEnable = $true
-} catch {
-    Write-Host "FAILED to open $ComPort : $_"
-    exit 1
-}
-try {
-    $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $ListenPort)
-    $listener.Start()
-} catch {
-    Write-Host "FAILED to listen on port $ListenPort : $_"
-    exit 1
-}
-Write-Host "Bridging $ComPort @ $BaudRate baud <-> tcp/$ListenPort (loopback only)"
-while ($true) {
-    $client = $listener.AcceptTcpClient()
-    Write-Host "Client connected."
-    $stream = $client.GetStream()
-    while ($client.Connected) {
-        try {
-            $n = $serial.BytesToRead
-            if ($n -gt 0) {
-                $buf = New-Object byte[] $n
-                $serial.Read($buf, 0, $n) | Out-Null
-                $stream.Write($buf, 0, $n)
-            }
-        } catch {}
-        try {
-            if ($stream.DataAvailable) {
-                $buf = New-Object byte[] 256
-                $r = $stream.Read($buf, 0, $buf.Length)
-                if ($r -eq 0) { break }
-                $serial.Write($buf, 0, $r)
-            }
-        } catch { break }
-        Start-Sleep -Milliseconds 2
-    }
-    $client.Close()
-    Write-Host "Client disconnected, waiting for reconnect..."
-}
-```
-
-Then run it:
+Then run it, in PowerShell (which opens in that same home folder):
 
 ```
 powershell -ExecutionPolicy Bypass -File serial-bridge.ps1 -ComPort COM4 -BaudRate 115200 -ListenPort 9001
 ```
 
+Re-copy it after pulling if `tools/serial-bridge.ps1` changes. It forwards
+bytes the moment they arrive in either direction (no polling sleeps) with
+Nagle disabled, to keep the added latency as low as this path allows.
+
 #### 2 — WSL: expose the TCP stream as a virtual serial device
 
 ```
-socat -d -d pty,raw,echo=0,link=$HOME/ttyBridge tcp:localhost:9001
+socat -d -d pty,raw,echo=0,link=$HOME/ttyBridge tcp:localhost:9001,nodelay
 ```
 
 #### 3 — WSL (separate terminal): run the actual simulation
@@ -516,14 +455,16 @@ cd ~/chai3d/haptic-device
 
 ### Known limitation of the bridge setup
 
-This path adds real latency/jitter on top of the actual serial link: COM
-port → PowerShell poll loop → TCP → socat → PTY. It's fine for confirming
-the build/protocol/mechanism work end to end, but force feedback can feel
-choppy or intermittent rather than smooth — that's expected on this path,
-not a bug.
+This path still adds some latency/jitter on top of the actual serial link:
+COM port → PowerShell bridge → TCP → socat → PTY. The bridge is
+event-driven and both TCP ends have Nagle disabled (`NoDelay` in the script,
+`nodelay` on the socat side), so this should be small — but it's never as
+tight as a direct connection.
 
-* Check the on-screen Hz counter in the sim if force feel seems off.
-* If it's well under ~500–1000Hz, that's the bridge, not the hardware.
+* The haptics loop runs at a fixed 1 kHz (see `HAPTIC_LOOP_HZ` in
+  `globals.h`), so the on-screen haptic Hz counter should read ~1000. If it
+  reads well under that, the loop is overrunning (e.g. a slow calculator),
+  not the bridge.
 * Switch to real usbipd-win USB passthrough once admin access is available,
   for a cleaner/lower-latency connection.
 
