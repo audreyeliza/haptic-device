@@ -47,7 +47,6 @@ uma_env/
 
 # POSCARs
 *.poscar
-POSCAR
 
 # local build outputs
 build/

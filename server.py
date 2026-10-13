@@ -10,8 +10,6 @@ import pickle
 import struct
 import time
 
-print("JOBID", os.environ.get("SLURM_JOB_ID", ""), flush=True)
-
 predictor = pretrained_mlip.get_predict_unit(
    "uma-s-1p2",
    inference_settings="turbo",
@@ -29,7 +27,6 @@ while True:
     data = sys.stdin.buffer.read(np.dtype(np.float32).itemsize * num_atoms * 3)
     atoms.set_positions(np.frombuffer(data, dtype=np.float32).reshape((num_atoms, 3)))
     forces = atoms.get_forces()
-    energy = atoms.get_potential_energy()
-    sys.stdout.buffer.write(forces.tobytes() + struct.pack("d", energy) + b"\n")
+    sys.stdout.buffer.write(forces.tobytes() + struct.pack("d", atoms.get_potential_energy()) + b"\n")
     sys.stdout.flush()
 

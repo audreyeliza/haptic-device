@@ -1,4 +1,3 @@
 fairchem-core
 pyusb
 PySide6>=6.5
-paramiko
