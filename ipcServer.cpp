@@ -96,7 +96,8 @@ string buildStatus() {
       << " k_return=" << kReturn.load()
       << " k_dampen=" << kDampen.load()
       << " return_delay=" << returnDelaySeconds.load()
-      << " force_scale=" << hapticForceScale.load();
+      << " force_scale=" << hapticForceScale.load()
+      << " substeps=" << physicsSubsteps.load();
   return out.str();
 }
 
@@ -230,6 +231,18 @@ string handleCommand(const string &line) {
         }
       } catch (const exception &) {
         return "ERR force_scale must be a valid number";
+      }
+      return "OK";
+    } else if (key == "substeps") {
+      try {
+        size_t consumed = 0;
+        int parsed = stoi(value, &consumed);
+        if (consumed != value.size() || !setLiveSubsteps(parsed)) {
+          return "ERR substeps must be an integer between " +
+                 to_string(MIN_PHYSICS_SUBSTEPS) + " and " + to_string(MAX_PHYSICS_SUBSTEPS);
+        }
+      } catch (const exception &) {
+        return "ERR substeps must be a valid integer";
       }
       return "OK";
     }

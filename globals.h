@@ -126,6 +126,21 @@ constexpr double MAX_SIMULATION_TIME_STEP = 30.0;
 // [MIN_SIMULATION_TIME_STEP, MAX_SIMULATION_TIME_STEP]
 bool setLiveTimeStep(double seconds);
 
+// The haptics loop runs at a fixed HAPTIC_LOOP_HZ (one device read and one
+// force command per tick) and advances the simulation by this many
+// simulationTimeStep sub-steps per tick, so simulated time advances at the
+// same rate on every machine instead of as fast as the CPU allows.
+// Overridable at launch via HAPTIC_DEVICE_SUBSTEPS and at runtime via the
+// IPC "set substeps" command.
+constexpr int HAPTIC_LOOP_HZ = 1000;
+extern std::atomic<int> physicsSubsteps;
+
+constexpr int MIN_PHYSICS_SUBSTEPS = 1;
+constexpr int MAX_PHYSICS_SUBSTEPS = 2000;
+
+// validated setter for physicsSubsteps, same fail-closed contract as setLiveTimeStep
+bool setLiveSubsteps(int value);
+
 // standby/return-to-center haptic tuning parameters, used by standbyModeUpdate
 // in LJ.cpp and changeable at runtime via the IPC
 // "set settling_err/k_return/k_dampen/return_delay" commands

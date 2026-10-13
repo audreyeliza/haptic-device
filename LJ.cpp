@@ -207,6 +207,7 @@ std::atomic<double> returnDelaySeconds(2.5);
 // worn devices turn down feedback strength to reduce wear, without touching
 // the underlying simulation's spring/damping constants.
 std::atomic<double> hapticForceScale(1.0);
+std::atomic<int> physicsSubsteps(200);
 
 // sphere objects
 vector<Atom *> spheres;
@@ -585,6 +586,11 @@ int runApplication(int argc, char *argv[]) {
   // down instead of having to dial it back after every launch
   if (const char *forceScaleEnv = std::getenv("HAPTIC_DEVICE_FORCE_SCALE")) {
     setLiveForceScale(atof(forceScaleEnv));
+  }
+
+  // initial physics sub-steps per haptic tick
+  if (const char *substepsEnv = std::getenv("HAPTIC_DEVICE_SUBSTEPS")) {
+    setLiveSubsteps(atoi(substepsEnv));
   }
 
   // IPC SERVER - lets the desktop launcher UI query status and change
@@ -1224,6 +1230,14 @@ bool setLiveForceScale(double value) {
     return false;
   }
   hapticForceScale.store(value);
+  return true;
+}
+
+bool setLiveSubsteps(int value) {
+  if (value < MIN_PHYSICS_SUBSTEPS || value > MAX_PHYSICS_SUBSTEPS) {
+    return false;
+  }
+  physicsSubsteps.store(value);
   return true;
 }
 
@@ -2388,6 +2402,11 @@ void updateHaptics(void) {
   bool buttonReset[4];
   readButtons(buttons, buttonReset);
   initializeprevPositions();
+  // Fixed-rate loop (see HAPTIC_LOOP_HZ in globals.h) - free-running, this
+  // loop spun as fast as the CPU allowed, so simulated time ran at a
+  // machine-dependent speed and raced far ahead of the 1 kHz device updates.
+  const auto tickPeriod = std::chrono::microseconds(1000000 / HAPTIC_LOOP_HZ);
+  auto nextTick = std::chrono::steady_clock::now();
   while (simulationRunning) {
     /////////////////////////////////////////////////////////////////////
     // SIMULATION TIME
@@ -2421,7 +2440,11 @@ void updateHaptics(void) {
     // (and HAPTIC_DEVICE_TIME_STEP / the IPC "set timestep" command) so the
     // cout << simulationTimeStep.load() << endl;
     // slider takes effect in haptic mode too, instead of a hardcoded value.
-    cVector3d force = stepSimulation(position, simulationTimeStep.load() / ASE_UNITS_TO_FS, true);
+    cVector3d force;
+    const int substeps = physicsSubsteps.load();
+    for (int step = 0; step < substeps; step++) {
+      force = stepSimulation(position, simulationTimeStep.load() / ASE_UNITS_TO_FS, true);
+    }
 
     /////////////////////////////////////////////////////////////////////////
     // APPLY FORCES
@@ -2433,6 +2456,16 @@ void updateHaptics(void) {
     // intensity is set to 100%
     force = clampVectorMagnitude(force * hapticForceScale.load(), MAX_HAPTIC_OUTPUT_FORCE);
     hapticDevice->setForce(force);
+
+    // wait for the next tick; if this one overran (e.g. a slow calculator),
+    // start fresh from now rather than bursting to catch up
+    nextTick += tickPeriod;
+    auto now = std::chrono::steady_clock::now();
+    if (nextTick < now) {
+      nextTick = now;
+    } else {
+      std::this_thread::sleep_until(nextTick);
+    }
   }
   // close  connection to haptic device
   hapticDevice->close();
